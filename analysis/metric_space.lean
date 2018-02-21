@@ -43,14 +43,14 @@ Each metric space induces a canonical `uniform_space` and hence a canonical `top
 This is enforced in the type class definition, by extending the `uniform_space` structure. When
 instantiating a `metric_space` structure, the uniformity fields are not necessary, they will be
 filled in by default. -/
-class metric_space (α : Type u) extends uniform_space α : Type u :=
+class metric_space (α : Type u) : Type u :=
 (dist : α → α → ℝ)
 (dist_self : ∀ x : α, dist x x = 0)
 (eq_of_dist_eq_zero : ∀ {x y : α}, dist x y = 0 → x = y)
 (dist_comm : ∀ x y : α, dist x y = dist y x)
 (dist_triangle : ∀ x y z : α, dist x z ≤ dist x y + dist y z)
+(to_uniform_space : uniform_space α := metric_space.uniform_space_of_dist dist dist_self dist_comm dist_triangle)
 (uniformity_dist : uniformity = ⨅ ε>0, principal {p:α×α | dist p.1 p.2 < ε} . control_laws_tac)
-(to_uniform_space := metric_space.uniform_space_of_dist dist dist_self dist_comm dist_triangle)
 
 theorem uniformity_dist_of_mem_uniformity {U : filter (α × α)} (D : α → α → ℝ)
   (H : ∀ s, s ∈ U.sets ↔ ∃ε>0, ∀{a b:α}, D a b < ε → (a, b) ∈ s) :
@@ -61,6 +61,9 @@ le_antisymm
     mem_infi_sets ε $ mem_infi_sets ε0 $ mem_principal_sets.2 $ λ ⟨a, b⟩, h)
 
 variables [metric_space α]
+
+instance metric_space.to_uniform_space' : uniform_space α :=
+metric_space.to_uniform_space α
 
 /-- The distance function (given an ambient metric space on `α`), which returns
   a nonnegative real number `dist x y` given `x y : α`. -/
@@ -272,6 +275,12 @@ instance : metric_space ℝ :=
 
 theorem real.dist_eq (x y : ℝ) : dist x y = abs (x - y) := rfl
 
+theorem real.dist_0_eq_abs (x : ℝ) : dist x 0 = abs x :=
+by simp [real.dist_eq]
+
+@[simp] theorem abs_dist {a b : α} : abs (dist a b) = dist a b :=
+abs_of_nonneg dist_nonneg
+
 instance : orderable_topology ℝ :=
 orderable_topology_of_nhds_abs $ λ x, begin
   simp only [show ∀ r, {b : ℝ | abs (x - b) < r} = ball x r,
@@ -316,9 +325,9 @@ def metric_space.induced {α β} (f : α → β) (hf : function.injective f)
 
 theorem metric_space.induced_uniform_embedding {α β} (f : α → β) (hf : function.injective f)
   (m : metric_space β) :
-  by have := metric_space.induced f hf m;
+  by haveI := metric_space.induced f hf m;
      exact uniform_embedding f :=
-by let := metric_space.induced f hf m; exact
+by let := metric_space.induced f hf m; exactI
 uniform_embedding_of_metric.2 ⟨hf, uniform_continuous_vmap, λ ε ε0, ⟨ε, ε0, λ a b, id⟩⟩
 
 instance {p : α → Prop} [t : metric_space α] : metric_space (subtype p) :=
@@ -348,7 +357,8 @@ instance prod.metric_space_max [metric_space β] : metric_space (α × β) :=
   to_uniform_space := prod.uniform_space }
 
 theorem uniform_continuous_dist' : uniform_continuous (λp:α×α, dist p.1 p.2) :=
-uniform_continuous_of_metric.2 (λ ε ε0, ⟨ε/2, half_pos ε0, begin
+uniform_continuous_of_metric.2 (λ ε ε0, ⟨ε/2, half_pos ε0,
+begin
   suffices,
   { intros p q h, cases p with p₁ p₂, cases q with q₁ q₂,
     cases max_lt_iff.1 h with h₁ h₂, clear h,
@@ -376,12 +386,26 @@ theorem continuous_dist [topological_space β] {f g : β → α}
   (hf : continuous f) (hg : continuous g) : continuous (λb, dist (f b) (g b)) :=
 (hf.prod_mk hg).comp continuous_dist'
 
-theorem tendsto_dist [topological_space β] {f g : β → α} {x : filter β} {a b : α}
+theorem tendsto_dist {f g : β → α} {x : filter β} {a b : α}
   (hf : tendsto f x (nhds a)) (hg : tendsto g x (nhds b)) :
   tendsto (λx, dist (f x) (g x)) x (nhds (dist a b)) :=
 have tendsto (λp:α×α, dist p.1 p.2) (nhds (a, b)) (nhds (dist a b)),
   from continuous_iff_tendsto.mp continuous_dist' (a, b),
 (hf.prod_mk hg).comp (by rw [nhds_prod_eq] at this; exact this)
+
+lemma nhds_vmap_dist (a : α) : (nhds (0 : ℝ)).vmap (λa', dist a' a) = nhds a :=
+have h₁ : ∀ε, (λa', dist a' a) ⁻¹' ball 0 ε ⊆ ball a ε,
+  by simp [subset_def, real.dist_0_eq_abs],
+have h₂ : tendsto (λa', dist a' a) (nhds a) (nhds (dist a a)),
+  from tendsto_dist tendsto_id tendsto_const_nhds,
+le_antisymm
+  (by simp [h₁, nhds_eq_metric, infi_le_infi, principal_mono, 
+      -le_principal_iff, -le_infi_iff])
+  (by simpa [map_le_iff_le_vmap.symm, tendsto] using h₂)
+
+lemma tendsto_iff_dist_tendsto_zero {f : β → α} {x : filter β} {a : α} :
+  (tendsto f x (nhds a)) ↔ (tendsto (λb, dist (f b) a) x (nhds 0)) :=
+by rw [← nhds_vmap_dist a, tendsto_vmap_iff]
 
 theorem is_closed_ball : is_closed (closed_ball x ε) :=
 is_closed_le (continuous_dist continuous_id continuous_const) continuous_const

@@ -170,6 +170,9 @@ by {induction s with b s H generalizing a, refl, simp [foldl], rw H _}
 theorem append_foldr (f : α → β → β) (a : β) (s t : list α) : foldr f a (s ++ t) = foldr f (foldr f a t) s :=
 by {induction s with b s H generalizing a, refl, simp [foldr], rw H _}
 
+@[simp] lemma append_eq_nil (p q : list α) : (p ++ q) = [] ↔ p = [] ∧ q = [] :=
+by cases p; simp
+
 /- join -/
 
 attribute [simp] join
@@ -794,6 +797,9 @@ by rw [modify_nth_eq_take_drop, drop_eq_nth_le_cons h]; refl
 theorem update_nth_eq_take_cons_drop (a : α) {n l} (h : n < length l) :
   update_nth l n a = take n l ++ a :: drop (n+1) l :=
 by rw [update_nth_eq_modify_nth, modify_nth_eq_take_cons_drop _ h]
+
+@[simp] lemma update_nth_eq_nil (l : list α) (n : ℕ) (a : α) : l.update_nth n a = [] ↔ l = [] :=
+by cases l; cases n; simp [update_nth]
 
 /- take_while -/
 
@@ -2285,7 +2291,7 @@ end
 
 variable [decidable_rel R]
 instance decidable_pairwise (l : list α) : decidable (pairwise R l) :=
-by induction l; simp; apply_instance
+by induction l; simp; resetI; apply_instance
 
 /- pairwise reduct -/
 
@@ -2433,7 +2439,7 @@ theorem chain_iff_pairwise (tr : transitive R) {a : α} {l : list α} :
 end, chain_of_pairwise⟩
 
 instance decidable_chain [decidable_rel R] (a : α) (l : list α) : decidable (chain R a l) :=
-by induction l generalizing a; simp; apply_instance
+by induction l generalizing a; simp; resetI; apply_instance
 
 end chain
 
