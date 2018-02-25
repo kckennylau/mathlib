@@ -106,6 +106,12 @@ lemma uniform_space.core_eq : ∀{u₁ u₂ : uniform_space.core α}, u₁.unifo
 class uniform_space (α : Type u) extends topological_space α, uniform_space.core α :=
 (is_open_uniformity : ∀s, is_open s ↔ (∀x∈s, { p : α × α | p.1 = x → p.2 ∈ s } ∈ uniformity.sets))
 
+@[pattern] def uniform_space.mk' {α} (t : topological_space α)
+  (c : uniform_space.core α)
+  (is_open_uniformity : ∀s:set α, t.is_open s ↔
+    (∀x∈s, { p : α × α | p.1 = x → p.2 ∈ s } ∈ c.uniformity.sets)) :
+  uniform_space α := ⟨c, is_open_uniformity⟩
+
 def uniform_space.of_core {α : Type u} (u : uniform_space.core α) : uniform_space α :=
 { to_core := u,
   to_topological_space := u.to_topological_space,
@@ -123,7 +129,7 @@ topological_space_eq $ funext $ assume s,
   by rw [uniform_space.core.to_topological_space, uniform_space.is_open_uniformity]
 
 lemma uniform_space_eq : ∀{u₁ u₂ : uniform_space α}, u₁.uniformity = u₂.uniformity → u₁ = u₂
-| ⟨t₁, u₁, o₁⟩  ⟨t₂, u₂, o₂⟩ h :=
+| (uniform_space.mk' t₁ u₁ o₁)  (uniform_space.mk' t₂ u₂ o₂) h :=
   have u₁ = u₂, from uniform_space.core_eq h,
   have t₁ = t₂, from topological_space_eq $ funext $ assume s, by rw [o₁, o₂]; simp [this],
   by simp [*]
@@ -457,7 +463,7 @@ lemma uniform_embedding.uniform_continuous [uniform_space β] {f : α → β}
 
 lemma uniform_embedding.uniform_continuous_iff [uniform_space β] [uniform_space γ] {f : α → β}
   {g : β → γ} (hg : uniform_embedding g) : uniform_continuous f ↔ uniform_continuous (g ∘ f) :=
-by simp [uniform_continuous, tendsto]; rw [← hg.2, ← map_le_iff_vmap_le, map_map]
+by simp [uniform_continuous, tendsto]; rw [← hg.2, ← map_le_iff_le_vmap, map_map]
 
 lemma uniform_embedding.dense_embedding [uniform_space β] {f : α → β}
   (h : uniform_embedding f) (hd : ∀x, x ∈ closure (range f)) : dense_embedding f :=
@@ -1348,7 +1354,7 @@ def uniform_space.vmap (f : α → β) (u : uniform_space β) : uniform_space α
 { uniformity := u.uniformity.vmap (λp:α×α, (f p.1, f p.2)),
   to_topological_space := u.to_topological_space.induced f,
   refl := le_trans (by simp; exact assume ⟨a, b⟩ (h : a = b), h ▸ rfl) (vmap_mono u.refl),
-  symm := tendsto_vmap' $ by simp [prod.swap, (∘)]; exact tendsto_vmap.comp tendsto_swap_uniformity,
+  symm := by simp [tendsto_vmap_iff, prod.swap, (∘)]; exact tendsto_vmap.comp tendsto_swap_uniformity,
   comp := le_trans
     begin
       rw [vmap_lift'_eq, vmap_lift'_eq2],
@@ -1386,7 +1392,7 @@ end
 
 lemma uniform_continuous_vmap' {f : γ → β} {g : α → γ} [v : uniform_space β] [u : uniform_space α]
   (h : uniform_continuous (f ∘ g)) : @uniform_continuous α γ u (uniform_space.vmap f v) g :=
-tendsto_vmap' h
+tendsto_vmap_iff.2 h
 
 lemma to_topological_space_mono {u₁ u₂ : uniform_space α} (h : u₁ ≤ u₂) :
   @uniform_space.to_topological_space _ u₁ ≤ @uniform_space.to_topological_space _ u₂ :=
@@ -1571,7 +1577,7 @@ lemma uniform_continuous.prod_mk [uniform_space α] [uniform_space β] [uniform_
   {f₁ : α → β} {f₂ : α → γ} (h₁ : uniform_continuous f₁) (h₂ : uniform_continuous f₂) :
   uniform_continuous (λa, (f₁ a, f₂ a)) :=
 by rw [uniform_continuous, uniformity_prod]; exact
-tendsto_inf.2 ⟨tendsto_vmap' h₁, tendsto_vmap' h₂⟩
+tendsto_inf.2 ⟨tendsto_vmap_iff.2 h₁, tendsto_vmap_iff.2 h₂⟩
 
 lemma uniform_embedding.prod {α' : Type*} {β' : Type*}
   [uniform_space α] [uniform_space β] [uniform_space α'] [uniform_space β']

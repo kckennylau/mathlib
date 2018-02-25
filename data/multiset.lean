@@ -6,7 +6,7 @@ Author: Mario Carneiro
 Multisets.
 -/
 import data.list.basic data.list.perm data.list.sort order.boolean_algebra
-       algebra.functions data.quot algebra.group_power algebra.ordered_group
+       algebra.order_functions data.quot algebra.group_power algebra.ordered_group
 open list subtype nat lattice
 
 variables {α : Type*} {β : Type*} {γ : Type*}
@@ -1335,6 +1335,12 @@ instance : distrib_lattice (multiset α) :=
 { le_sup_inf := λ s t u, le_of_eq $ eq.symm $
     ext.2 $ λ a, by simp [max_min_distrib_left],
   ..multiset.lattice.lattice }
+
+instance : semilattice_sup_bot (multiset α) :=
+{ bot := 0,
+  bot_le := zero_le,
+  ..multiset.lattice.lattice }
+
 end
 
 /- disjoint -/
@@ -1397,6 +1403,14 @@ disjoint_comm.trans $ by simp [disjoint_cons_left]
 
 theorem inter_eq_zero_iff_disjoint [decidable_eq α] {s t : multiset α} : s ∩ t = 0 ↔ disjoint s t :=
 by rw ← subset_zero; simp [subset_iff, disjoint]
+
+@[simp] theorem disjoint_union_left [decidable_eq α] {s t u : multiset α} :
+  disjoint (s ∪ t) u ↔ disjoint s u ∧ disjoint t u :=
+by simp [disjoint, or_imp_distrib, forall_and_distrib]
+
+@[simp] theorem disjoint_union_right [decidable_eq α] {s t u : multiset α} :
+  disjoint s (t ∪ u) ↔ disjoint s t ∧ disjoint s u :=
+by simp [disjoint, or_imp_distrib, forall_and_distrib]
 
 /- nodup -/
 
@@ -1640,6 +1654,14 @@ theorem ndinsert_le {a : α} {s t : multiset α} : ndinsert a s ≤ t ↔ s ≤ 
  λ ⟨l, m⟩, if h : a ∈ s then by simp [h, l] else
    by rw [ndinsert_of_not_mem h, ← cons_erase m, cons_le_cons_iff,
           ← le_cons_of_not_mem h, cons_erase m]; exact l⟩
+
+@[simp] theorem disjoint_ndinsert_left {a : α} {s t : multiset α} :
+  disjoint (ndinsert a s) t ↔ a ∉ t ∧ disjoint s t :=
+iff.trans (by simp [disjoint]) disjoint_cons_left
+
+@[simp] theorem disjoint_ndinsert_right {a : α} {s t : multiset α} :
+  disjoint s (ndinsert a t) ↔ a ∉ s ∧ disjoint s t :=
+disjoint_comm.trans $ by simp
 
 /- finset union -/
 

@@ -5,7 +5,7 @@ Author: Leonardo de Moura, Jeremy Avigad, Minchao Wu, Mario Carneiro
 
 Finite sets.
 -/
-import data.multiset order.boolean_algebra algebra.functions data.sigma.basic
+import data.multiset order.boolean_algebra algebra.order_functions data.sigma.basic
 open multiset subtype nat lattice
 
 variables {α : Type*} {β : Type*} {γ : Type*}
@@ -118,6 +118,8 @@ local prefix `ι`:90 := singleton
 @[simp] theorem mem_singleton {a b : α} : b ∈ ι a ↔ b = a :=
 by simp [singleton]
 
+theorem not_mem_singleton {a b : α} : a ∉ ι b ↔ a ≠ b := by simp
+
 theorem mem_singleton_self (a : α) : a ∈ ι a := by simp
 
 theorem singleton_inj {a b : α} : ι a = ι b ↔ a = b :=
@@ -216,6 +218,9 @@ ndunion_eq_union s₁.2
 theorem mem_union_left {a : α} {s₁ : finset α} (s₂ : finset α) (h : a ∈ s₁) : a ∈ s₁ ∪ s₂ := by simp *
 
 theorem mem_union_right {a : α} {s₂ : finset α} (s₁ : finset α) (h : a ∈ s₂) : a ∈ s₁ ∪ s₂ := by simp *
+
+theorem not_mem_union {a : α} {s₁ s₂ : finset α} : a ∉ s₁ ∪ s₂ ↔ a ∉ s₁ ∧ a ∉ s₂ :=
+by simp [not_or_distrib]
 
 theorem union_subset {s₁ s₂ s₃ : finset α} (h₁ : s₁ ⊆ s₃) (h₂ : s₂ ⊆ s₃) : s₁ ∪ s₂ ⊆ s₃ :=
 val_le_iff.1 (ndunion_le.2 ⟨h₁, val_le_iff.2 h₂⟩)
@@ -715,12 +720,12 @@ ext.2 $ by simp [or_and_distrib_right, exists_or_distrib]
 
 theorem image_bind [decidable_eq γ] {f : α → β} {s : finset α} {t : β → finset γ} :
   (s.image f).bind t = s.bind (λa, t (f a)) :=
-by have := classical.dec_eq α; exact
+by haveI := classical.dec_eq α; exact
 finset.induction_on s (by simp) (by simp {contextual := tt})
 
 theorem bind_image [decidable_eq γ] {s : finset α} {t : α → finset β} {f : β → γ} :
   (s.bind t).image f = s.bind (λa, (t a).image f) :=
-by have := classical.dec_eq α; exact
+by haveI := classical.dec_eq α; exact
 finset.induction_on s (by simp) (by simp [image_union] {contextual := tt})
 
 theorem bind_to_finset [decidable_eq α] (s : multiset α) (t : α → multiset β) :
@@ -817,7 +822,7 @@ by unfold fold; rw [← fold_add op, ← map_add, union_val,
 
 @[simp] theorem fold_insert_idem [decidable_eq α] [hi : is_idempotent β op] :
   (insert a s).fold op b f = f a * s.fold op b f :=
-by have : decidable_eq β := (λ _ _, classical.prop_decidable _);
+by haveI := classical.prop_decidable;
    rw [fold, insert_val', ← fold_erase_dup_idem op, erase_dup_map_erase_dup_eq,
        fold_erase_dup_idem op]; simp [fold]
 
