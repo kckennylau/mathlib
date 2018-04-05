@@ -1,7 +1,7 @@
 /-
 Copyright (c) 2017 Johannes Hölzl. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Johannes Hölzl
+Authors: Johannes Hölzl, Mario Carneiro
 
 Theory of topological monoids, groups and rings.
 -/
@@ -10,19 +10,21 @@ import algebra.big_operators
   analysis.topology.topological_space analysis.topology.continuity analysis.topology.uniform_space
 
 open classical set lattice filter topological_space
-local attribute [instance] classical.decidable_inhabited classical.prop_decidable
+local attribute [instance] classical.prop_decidable
 
 universes u v w
 variables {α : Type u} {β : Type v} {γ : Type w}
 
 lemma dense_or_discrete [linear_order α] {a₁ a₂ : α} (h : a₁ < a₂) :
   (∃a, a₁ < a ∧ a < a₂) ∨ ((∀a>a₁, a ≥ a₂) ∧ (∀a<a₂, a ≤ a₁)) :=
-or_iff_not_imp_left.2 $ assume h,
+classical.or_iff_not_imp_left.2 $ assume h,
   ⟨assume a ha₁, le_of_not_gt $ assume ha₂, h ⟨a, ha₁, ha₂⟩,
     assume a ha₂, le_of_not_gt $ assume ha₁, h ⟨a, ha₁, ha₂⟩⟩
 
 section topological_add_monoid
 
+/-- A topological (additive) monoid is a monoid in which the addition is
+  continuous as a function `α × α → α`. -/
 class topological_add_monoid (α : Type u) [topological_space α] [add_monoid α] : Prop :=
 (continuous_add : continuous (λp:α×α, p.1 + p.2))
 
@@ -34,7 +36,7 @@ topological_add_monoid.continuous_add α
 
 lemma continuous_add [topological_add_monoid α] [topological_space β] {f : β → α} {g : β → α}
   (hf : continuous f) (hg : continuous g) : continuous (λx, f x + g x) :=
-continuous_compose (continuous_prod_mk hf hg) continuous_add'
+(hf.prod_mk hg).comp continuous_add'
 
 lemma tendsto_add' [topological_add_monoid α] {a b : α} :
   tendsto (λp:α×α, p.fst + p.snd) (nhds (a, b)) (nhds (a + b)) :=
@@ -42,7 +44,7 @@ continuous_iff_tendsto.mp (topological_add_monoid.continuous_add α) (a, b)
 
 lemma tendsto_add [topological_add_monoid α] {f : β → α} {g : β → α} {x : filter β} {a b : α}
   (hf : tendsto f x (nhds a)) (hg : tendsto g x (nhds b)) : tendsto (λx, f x + g x) x (nhds (a + b)) :=
-tendsto_compose (tendsto_prod_mk hf hg) (by rw [←nhds_prod_eq]; exact tendsto_add')
+(hf.prod_mk hg).comp (by rw [←nhds_prod_eq]; exact tendsto_add')
 end
 
 section
@@ -50,7 +52,7 @@ variables [topological_space α] [add_comm_monoid α]
 
 lemma tendsto_sum [topological_add_monoid α] {f : γ → β → α} {x : filter β} {a : γ → α} {s : finset γ} :
   (∀c∈s, tendsto (f c) x (nhds (a c))) → tendsto (λb, s.sum (λc, f c b)) x (nhds (s.sum a)) :=
-s.induction_on (by simp; exact tendsto_const_nhds) $ assume b s,
+finset.induction_on s (by simp; exact tendsto_const_nhds) $ assume b s,
   by simp [or_imp_distrib, forall_and_distrib, tendsto_add] {contextual := tt}
 
 end
@@ -58,6 +60,8 @@ end
 end topological_add_monoid
 
 section topological_add_group
+/-- A topological (additive) group is a group in which the addition and
+  negation operations are continuous. -/
 class topological_add_group (α : Type u) [topological_space α] [add_group α]
   extends topological_add_monoid α : Prop :=
 (continuous_neg : continuous (λa:α, -a))
@@ -69,11 +73,11 @@ topological_add_group.continuous_neg α
 
 lemma continuous_neg [topological_add_group α] [topological_space β] {f : β → α}
   (hf : continuous f) : continuous (λx, - f x) :=
-continuous_compose hf continuous_neg'
+hf.comp continuous_neg'
 
 lemma tendsto_neg [topological_add_group α] {f : β → α} {x : filter β} {a : α}
   (hf : tendsto f x (nhds a)) : tendsto (λx, - f x) x (nhds (- a)) :=
-tendsto_compose hf (continuous_iff_tendsto.mp (topological_add_group.continuous_neg α) a)
+hf.comp (continuous_iff_tendsto.mp (topological_add_group.continuous_neg α) a)
 
 lemma continuous_sub [topological_add_group α] [topological_space β] {f : β → α} {g : β → α}
   (hf : continuous f) (hg : continuous g) : continuous (λx, f x - g x) :=
@@ -89,8 +93,15 @@ by simp; exact tendsto_add hf (tendsto_neg hg)
 end topological_add_group
 
 section uniform_add_group
+/-- A uniform (additive) group is a group in which the addition and negation are
+  uniformly continuous. -/
 class uniform_add_group (α : Type u) [uniform_space α] [add_group α] : Prop :=
 (uniform_continuous_sub : uniform_continuous (λp:α×α, p.1 - p.2))
+
+theorem uniform_add_group.mk' {α} [uniform_space α] [add_group α]
+  (h₁ : uniform_continuous (λp:α×α, p.1 + p.2))
+  (h₂ : uniform_continuous (λp:α, -p)) : uniform_add_group α :=
+⟨(uniform_continuous_fst.prod_mk (uniform_continuous_snd.comp h₂)).comp h₁⟩
 
 variables [uniform_space α] [add_group α]
 
@@ -99,7 +110,7 @@ uniform_add_group.uniform_continuous_sub α
 
 lemma uniform_continuous_sub [uniform_add_group α] [uniform_space β] {f : β → α} {g : β → α}
   (hf : uniform_continuous f) (hg : uniform_continuous g) : uniform_continuous (λx, f x - g x) :=
-uniform_continuous_compose (uniform_continuous_prod_mk hf hg) uniform_continuous_sub'
+(hf.prod_mk hg).comp uniform_continuous_sub'
 
 lemma uniform_continuous_neg [uniform_add_group α] [uniform_space β] {f : β → α}
   (hf : uniform_continuous f) : uniform_continuous (λx, - f x) :=
@@ -120,12 +131,13 @@ lemma uniform_continuous_add' [uniform_add_group α] : uniform_continuous (λp:�
 uniform_continuous_add uniform_continuous_fst uniform_continuous_snd
 
 instance uniform_add_group.to_topological_add_group [uniform_add_group α] : topological_add_group α :=
-{ continuous_add := continuous_of_uniform uniform_continuous_add',
-  continuous_neg := continuous_of_uniform uniform_continuous_neg' }
+{ continuous_add := uniform_continuous_add'.continuous,
+  continuous_neg := uniform_continuous_neg'.continuous }
 
 end uniform_add_group
 
 section topological_semiring
+/-- A topological semiring is a semiring where addition and multiplication are continuous. -/
 class topological_semiring (α : Type u) [topological_space α] [semiring α]
   extends topological_add_monoid α : Prop :=
 (continuous_mul : continuous (λp:α×α, p.1 * p.2))
@@ -134,30 +146,29 @@ variables [topological_space α] [semiring α]
 
 lemma continuous_mul [topological_semiring α] [topological_space β] {f : β → α} {g : β → α}
   (hf : continuous f) (hg : continuous g) : continuous (λx, f x * g x) :=
-continuous_compose (continuous_prod_mk hf hg) (topological_semiring.continuous_mul α)
+(hf.prod_mk hg).comp (topological_semiring.continuous_mul α)
 
 lemma tendsto_mul [topological_semiring α] {f : β → α} {g : β → α} {x : filter β} {a b : α}
   (hf : tendsto f x (nhds a)) (hg : tendsto g x (nhds b)) : tendsto (λx, f x * g x) x (nhds (a * b)) :=
 have tendsto (λp:α×α, p.fst * p.snd) (nhds (a, b)) (nhds (a * b)),
   from continuous_iff_tendsto.mp (topological_semiring.continuous_mul α) (a, b),
-tendsto_compose (tendsto_prod_mk hf hg) (by rw [nhds_prod_eq] at this; exact this)
+(hf.prod_mk hg).comp (by rw [nhds_prod_eq] at this; exact this)
 
 end topological_semiring
 
+/-- A topological ring is a ring where the ring operations are continuous. -/
 class topological_ring (α : Type u) [topological_space α] [ring α]
   extends topological_add_monoid α : Prop :=
 (continuous_mul : continuous (λp:α×α, p.1 * p.2))
 (continuous_neg : continuous (λa:α, -a))
 
 instance topological_ring.to_topological_semiring
-  [topological_space α] [ring α] [t : topological_ring α] : topological_semiring α :=
-{ t.to_topological_add_monoid with continuous_mul := t.continuous_mul }
+  [topological_space α] [ring α] [t : topological_ring α] : topological_semiring α := {..t}
 
 instance topological_ring.to_topological_add_group
-  [topological_space α] [ring α] [t : topological_ring α] : topological_add_group α :=
-{ t.to_topological_add_monoid with continuous_neg := t.continuous_neg }
+  [topological_space α] [ring α] [t : topological_ring α] : topological_add_group α := {..t}
 
-/- (Partially) ordered topology
+/-- (Partially) ordered topology
 Also called: partially ordered spaces (pospaces).
 
 Usually ordered topology is used for a topology on linear ordered spaces, where the open intervals
@@ -174,19 +185,19 @@ include t
 
 lemma is_closed_le [topological_space β] {f g : β → α} (hf : continuous f) (hg : continuous g) :
   is_closed {b | f b ≤ g b} :=
-continuous_iff_is_closed.mp (continuous_prod_mk hf hg) _ t.is_closed_le'
+continuous_iff_is_closed.mp (hf.prod_mk hg) _ t.is_closed_le'
 
-lemma is_closed_le' {a : α} : is_closed {b | b ≤ a} :=
+lemma is_closed_le' (a : α) : is_closed {b | b ≤ a} :=
 is_closed_le continuous_id continuous_const
 
-lemma is_closed_ge' {a : α} : is_closed {b | a ≤ b} :=
+lemma is_closed_ge' (a : α) : is_closed {b | a ≤ b} :=
 is_closed_le continuous_const continuous_id
 
 lemma le_of_tendsto {f g : β → α} {b : filter β} {a₁ a₂ : α} (hb : b ≠ ⊥)
   (hf : tendsto f b (nhds a₁)) (hg : tendsto g b (nhds a₂)) (h : {b | f b ≤ g b} ∈ b.sets) :
   a₁ ≤ a₂ :=
 have tendsto (λb, (f b, g b)) b (nhds (a₁, a₂)),
-  by rw [nhds_prod_eq]; exact tendsto_prod_mk hf hg,
+  by rw [nhds_prod_eq]; exact hf.prod_mk hg,
 show (a₁, a₂) ∈ {p:α×α | p.1 ≤ p.2},
   from mem_of_closed_of_tendsto hb this t.is_closed_le' h
 
@@ -200,7 +211,7 @@ instance ordered_topology.to_t2_space : t2_space α :=
   assume a b h,
   let ⟨u, v, hu, hv, ha, hb, h⟩ := is_open_prod_iff.mp this a b h in
   ⟨u, v, hu, hv, ha, hb,
-    set.eq_empty_of_forall_not_mem $ assume a ⟨h₁, h₂⟩,
+    set.eq_empty_iff_forall_not_mem.2 $ assume a ⟨h₁, h₂⟩,
     have a ≠ a, from @h (a, a) ⟨h₁, h₂⟩,
     this rfl⟩ }
 
@@ -238,7 +249,7 @@ lemma frontier_le_subset_eq : frontier {b | f b ≤ g b} ⊆ {b | f b = g b} :=
 assume b ⟨hb₁, hb₂⟩,
 le_antisymm
   (by simpa [closure_le_eq hf hg] using hb₁)
-  (not_lt_iff.mp $ assume hb : f b < g b,
+  (not_lt.1 $ assume hb : f b < g b,
     have {b | f b < g b} ⊆ interior {b | f b ≤ g b},
       from (subset_interior_iff_subset_of_open $ is_open_lt hf hg).mpr $ assume x, le_of_lt,
     have b ∈ interior {b | f b ≤ g b}, from this hb,
@@ -257,7 +268,7 @@ end
 lemma tendsto_max {b : filter β} {a₁ a₂ : α} (hf : tendsto f b (nhds a₁)) (hg : tendsto g b (nhds a₂)) :
   tendsto (λb, max (f b) (g b)) b (nhds (max a₁ a₂)) :=
 show tendsto ((λp:α×α, max p.1 p.2) ∘ (λb, (f b, g b))) b (nhds (max a₁ a₂)),
-  from tendsto_compose (tendsto_prod_mk hf hg) $
+  from (hf.prod_mk hg).comp
     begin
       rw [←nhds_prod_eq],
       from continuous_iff_tendsto.mp (continuous_max continuous_fst continuous_snd) _
@@ -266,7 +277,7 @@ show tendsto ((λp:α×α, max p.1 p.2) ∘ (λb, (f b, g b))) b (nhds (max a₁
 lemma tendsto_min {b : filter β} {a₁ a₂ : α} (hf : tendsto f b (nhds a₁)) (hg : tendsto g b (nhds a₂)) :
   tendsto (λb, min (f b) (g b)) b (nhds (min a₁ a₂)) :=
 show tendsto ((λp:α×α, min p.1 p.2) ∘ (λb, (f b, g b))) b (nhds (min a₁ a₂)),
-  from tendsto_compose (tendsto_prod_mk hf hg) $
+  from (hf.prod_mk hg).comp
     begin
       rw [←nhds_prod_eq],
       from continuous_iff_tendsto.mp (continuous_min continuous_fst continuous_snd) _
@@ -277,9 +288,9 @@ end decidable_linear_order
 end ordered_topology
 
 /-- Topologies generated by the open intervals.
-This is restricted to linear orders. Only then it is guaranteed that they are also a ordered
-topology.
--/
+
+  This is restricted to linear orders. Only then it is guaranteed that they are also a ordered
+  topology. -/
 class orderable_topology (α : Type*) [t : topological_space α] [partial_order α] : Prop :=
 (topology_eq_generate_intervals :
   t = generate_from {s | ∃a, s = {b : α | a < b} ∨ s = {b : α | b < a}})
@@ -327,13 +338,22 @@ from le_antisymm
     | _, h, (or.inr rfl) := inf_le_right_of_le $ infi_le_of_le b $ infi_le _ h
     end)
 
-lemma tendsto_orderable {f : β → α} {a : α} {x : filter β}
-  (h₁ : ∀a'<a, {b | a' < f b } ∈ x.sets) (h₂ : ∀a'>a, {b | a' > f b } ∈ x.sets) :
-  tendsto f x (nhds a) :=
-by rw [@nhds_eq_orderable α _ _];
-from tendsto_inf
-  (tendsto_infi $ assume b, tendsto_infi $ assume hb, tendsto_principal $ h₁ b hb)
-  (tendsto_infi $ assume b, tendsto_infi $ assume hb, tendsto_principal $ h₂ b hb)
+lemma tendsto_orderable {f : β → α} {a : α} {x : filter β} :
+  tendsto f x (nhds a) ↔ (∀a'<a, {b | a' < f b} ∈ x.sets) ∧ (∀a'>a, {b | a' > f b} ∈ x.sets) :=
+by simp [@nhds_eq_orderable α _ _, tendsto_inf, tendsto_infi, tendsto_principal]
+
+/-- Also known as squeeze or sandwich theorem. -/
+lemma tendsto_of_tendsto_of_tendsto_of_le_of_le {f g h : β → α} {b : filter β} {a : α}
+  (hg : tendsto g b (nhds a)) (hh : tendsto h b (nhds a))
+  (hgf : {b | g b ≤ f b} ∈ b.sets) (hfh : {b | f b ≤ h b} ∈ b.sets) :
+  tendsto f b (nhds a) :=
+tendsto_orderable.2
+  ⟨assume a' h',
+    have {b : β | a' < g b} ∈ b.sets, from (tendsto_orderable.1 hg).left a' h',
+    by filter_upwards [this, hgf] assume a, lt_of_lt_of_le,
+    assume a' h',
+    have {b : β | h b < a'} ∈ b.sets, from (tendsto_orderable.1 hh).right a' h',
+    by filter_upwards [this, hfh] assume a h₁ h₂, lt_of_le_of_lt h₂ h₁⟩
 
 lemma nhds_orderable_unbounded {a : α} (hu : ∃u, a < u) (hl : ∃l, l < a) :
   nhds a = (⨅l (h₂ : l < a) u (h₂ : a < u), principal {x | l < x ∧ x < u }) :=
@@ -343,21 +363,58 @@ calc nhds a = (⨅b<a, principal {c | b < c}) ⊓ (⨅b>a, principal {c | c < b}
     binfi_inf hl
   ... = (⨅l<a, (⨅u>a, principal {c | c < u} ⊓ principal {c | l < c})) :
     begin
-      congr, apply funext, intro x,
-      congr, apply funext, intro hx,
+      congr, funext x,
+      congr, funext hx,
       rw [inf_comm],
       apply binfi_inf hu
     end
-  ... = _ : by simp; refl
+  ... = _ : by simp [inter_comm]; refl
 
 lemma tendsto_orderable_unbounded {f : β → α} {a : α} {x : filter β}
   (hu : ∃u, a < u) (hl : ∃l, l < a) (h : ∀l u, l < a → a < u → {b | l < f b ∧ f b < u } ∈ x.sets) :
   tendsto f x (nhds a) :=
 by rw [nhds_orderable_unbounded hu hl];
-from (tendsto_infi $ assume l, tendsto_infi $ assume hl,
-  tendsto_infi $ assume u, tendsto_infi $ assume hu, tendsto_principal $ h l u hl hu)
+from (tendsto_infi.2 $ assume l, tendsto_infi.2 $ assume hl,
+  tendsto_infi.2 $ assume u, tendsto_infi.2 $ assume hu, tendsto_principal.2 $ h l u hl hu)
 
 end partial_order
+
+theorem induced_orderable_topology' {α : Type u} {β : Type v}
+  [partial_order α] [ta : topological_space β] [partial_order β] [orderable_topology β]
+  (f : α → β) (hf : ∀ {x y}, f x < f y ↔ x < y)
+  (H₁ : ∀ {a x}, x < f a → ∃ b < a, x ≤ f b)
+  (H₂ : ∀ {a x}, f a < x → ∃ b > a, f b ≤ x) :
+  @orderable_topology _ (induced f ta) _ :=
+begin
+  letI := induced f ta,
+  refine ⟨eq_of_nhds_eq_nhds (λ a, _)⟩,
+  rw [nhds_induced_eq_vmap, nhds_generate_from, @nhds_eq_orderable β _ _], apply le_antisymm,
+  { rw [← map_le_iff_le_vmap],
+    refine le_inf _ _; refine le_infi (λ x, le_infi $ λ h, le_principal_iff.2 _); simp,
+    { rcases H₁ h with ⟨b, ab, xb⟩,
+      refine mem_infi_sets _ (mem_infi_sets ⟨ab, b, or.inl rfl⟩ (mem_principal_sets.2 _)),
+      exact λ c hc, lt_of_le_of_lt xb (hf.2 hc) },
+    { rcases H₂ h with ⟨b, ab, xb⟩,
+      refine mem_infi_sets _ (mem_infi_sets ⟨ab, b, or.inr rfl⟩ (mem_principal_sets.2 _)),
+      exact λ c hc, lt_of_lt_of_le (hf.2 hc) xb } },
+  refine le_infi (λ s, le_infi $ λ hs, le_principal_iff.2 _),
+  rcases hs with ⟨ab, b, rfl|rfl⟩,
+  { exact mem_vmap_sets.2 ⟨{x | f b < x},
+      mem_inf_sets_of_left $ mem_infi_sets _ $ mem_infi_sets (hf.2 ab) $ mem_principal_self _,
+      λ x, hf.1⟩ },
+  { exact mem_vmap_sets.2 ⟨{x | x < f b},
+      mem_inf_sets_of_right $ mem_infi_sets _ $ mem_infi_sets (hf.2 ab) $ mem_principal_self _,
+      λ x, hf.1⟩ }
+end
+
+theorem induced_orderable_topology {α : Type u} {β : Type v}
+  [partial_order α] [ta : topological_space β] [partial_order β] [orderable_topology β]
+  (f : α → β) (hf : ∀ {x y}, f x < f y ↔ x < y)
+  (H : ∀ {x y}, x < y → ∃ a, x < f a ∧ f a < y) :
+  @orderable_topology _ (induced f ta) _ :=
+induced_orderable_topology' f @hf
+  (λ a x xa, let ⟨b, xb, ba⟩ := H xa in ⟨b, hf.1 ba, le_of_lt xb⟩)
+  (λ a x ax, let ⟨b, ab, bx⟩ := H ax in ⟨b, hf.1 ab, le_of_lt bx⟩)
 
 lemma nhds_top_orderable [topological_space α] [order_top α] [orderable_topology α] :
   nhds (⊤:α) = (⨅l (h₂ : l < ⊤), principal {x | l < x}) :=
@@ -389,9 +446,8 @@ have ht₁ : ((∃l, l<a) → ∃l, l < a ∧ ∀b, l < b → b ∈ t₁) ∧ (�
               ⟨hs₁ $ lt_of_le_of_lt (le_max_right _ _) hb,
                 hu₂ _ $ lt_of_le_of_lt (le_max_left _ _) hb⟩⟩,
             assume b hb, ⟨hs₁ $ lt_of_lt_of_le h hb, hs₃ _ hb⟩⟩ },
-        { simp [h] at hs₁,
-          simp at hs₂, simp [hs₁] at ⊢,
-          exact ⟨hs₃, hs₂⟩ }
+        { simp [h] at hs₁, simp [hs₁],
+          exact ⟨by simpa using hs₂, hs₃⟩ }
       end)
     (assume s₁ s₂ h ih, and.intro
       (assume hx, let ⟨u, hu₁, hu₂⟩ := ih.left hx in ⟨u, hu₁, assume b hb, h $ hu₂ _ hb⟩)
@@ -408,9 +464,8 @@ have ht₂ : ((∃u, u>a) → ∃u, a < u ∧ ∀b, b < u → b ∈ t₂) ∧ (�
               ⟨hs₁ $ lt_of_lt_of_le hb (min_le_right _ _),
                 hu₂ _ $ lt_of_lt_of_le hb (min_le_left _ _)⟩⟩,
             assume b hb, ⟨hs₁ $ lt_of_le_of_lt hb h, hs₃ _ hb⟩⟩ },
-        { simp [h] at hs₁,
-          simp at hs₂, simp [hs₁] at ⊢,
-          exact ⟨hs₃, hs₂⟩ }
+        { simp [h] at hs₁, simp [hs₁],
+          exact ⟨by simpa using hs₂, hs₃⟩ }
       end)
     (assume s₁ s₂ h ih, and.intro
       (assume hx, let ⟨u, hu₁, hu₂⟩ := ih.left hx in ⟨u, hu₁, assume b hb, h $ hu₂ _ hb⟩)
@@ -426,12 +481,13 @@ have nhds a = (⨅p : {l // l < a} × {u // a < u}, principal {x | p.1.val < x �
   by simp [nhds_orderable_unbounded hu hl, infi_subtype, infi_prod],
 iff.intro
   (assume hs, by rw [this] at hs; from infi_sets_induct hs
-    begin simp; exact ⟨⟨u, hu'⟩, l, hl'⟩ end
+    ⟨l, u, hl', hu', by simp⟩
     begin
       intro p, cases p with p₁ p₂, cases p₁ with l hl, cases p₂ with u hu,
       simp [set.subset_def],
-      exact assume s₁ s₂ hs₁ l' u' hu' hl' hs₂,
-        ⟨max l l', min u u', by simp [*, lt_min_iff, max_lt_iff] {contextual := tt}⟩
+      intros s₁ s₂ hs₁ l' hl' u' hu' hs₂,
+      refine ⟨max l l', _, min u u', _⟩;
+      simp [*, lt_min_iff, max_lt_iff] {contextual := tt}
     end
     (assume s₁ s₂ h ⟨l, u, h₁, h₂, h₃⟩, ⟨l, u, h₁, h₂, assume b hu hl, h $ h₃ _ hu hl⟩))
   (assume ⟨l, u, hl, hu, h⟩,
@@ -459,8 +515,7 @@ instance orderable_topology.to_ordered_topology : ordered_topology α :=
 instance orderable_topology.t2_space : t2_space α := by apply_instance
 
 instance orderable_topology.regular_space : regular_space α :=
-{ orderable_topology.t2_space with
-  regular := assume s a hs ha,
+{ regular := assume s a hs ha,
     have -s ∈ (nhds a).sets, from mem_nhds_sets hs ha,
     let ⟨h₁, h₂⟩ := mem_nhds_orderable_dest this in
     have ∃t:set α, is_open t ∧ (∀l∈ s, l < a → l ∈ t) ∧ nhds a ⊓ principal t = ⊥,
@@ -472,10 +527,10 @@ instance orderable_topology.regular_space : regular_space α :=
               assume c hcs hca, show c < b,
                 from lt_of_not_ge $ assume hbc, h c (lt_of_lt_of_le hb₁ hbc) (le_of_lt hca) hcs,
               inf_principal_eq_bot $ (nhds a).upwards_sets (mem_nhds_sets (is_open_lt' _) hb₂) $
-                assume x (hx : b < x), show ¬ x < b, from not_lt_iff.mpr $ le_of_lt hx⟩
+                assume x (hx : b < x), show ¬ x < b, from not_lt.2 $ le_of_lt hx⟩
           | or.inr ⟨h₁, h₂⟩ := ⟨{a' | a' < a}, is_open_gt' _, assume b hbs hba, hba,
               inf_principal_eq_bot $ (nhds a).upwards_sets (mem_nhds_sets (is_open_lt' _) hl) $
-                assume x (hx : l < x), show ¬ x < a, from not_lt_iff.mpr $ h₁ _ hx⟩
+                assume x (hx : l < x), show ¬ x < a, from not_lt.2 $ h₁ _ hx⟩
           end)
         (assume : ¬ ∃l, l < a, ⟨∅, is_open_empty, assume l _ hl, (this ⟨l, hl⟩).elim,
           by rw [principal_empty, inf_bot_eq]⟩),
@@ -489,10 +544,10 @@ instance orderable_topology.regular_space : regular_space α :=
               assume c hcs hca, show c > b,
                 from lt_of_not_ge $ assume hbc, h c (le_of_lt hca) (lt_of_le_of_lt hbc hb₂) hcs,
               inf_principal_eq_bot $ (nhds a).upwards_sets (mem_nhds_sets (is_open_gt' _) hb₁) $
-                assume x (hx : b > x), show ¬ x > b, from not_lt_iff.mpr $ le_of_lt hx⟩
+                assume x (hx : b > x), show ¬ x > b, from not_lt.2 $ le_of_lt hx⟩
           | or.inr ⟨h₁, h₂⟩ := ⟨{a' | a' > a}, is_open_lt' _, assume b hbs hba, hba,
               inf_principal_eq_bot $ (nhds a).upwards_sets (mem_nhds_sets (is_open_gt' _) hu) $
-                assume x (hx : u > x), show ¬ x > a, from not_lt_iff.mpr $ h₂ _ hx⟩
+                assume x (hx : u > x), show ¬ x > a, from not_lt.2 $ h₂ _ hx⟩
           end)
         (assume : ¬ ∃u, u > a, ⟨∅, is_open_empty, assume l _ hl, (this ⟨l, hl⟩).elim,
           by rw [principal_empty, inf_bot_eq]⟩),
@@ -501,9 +556,32 @@ instance orderable_topology.regular_space : regular_space α :=
       assume x hx,
       have x ≠ a, from assume eq, ha $ eq ▸ hx,
       (ne_iff_lt_or_gt.mp this).imp (ht₁s _ hx) (ht₂s _ hx),
-      by rw [←sup_principal, inf_sup_left, ht₁a, ht₂a, bot_sup_eq]⟩ }
+      by rw [←sup_principal, inf_sup_left, ht₁a, ht₂a, bot_sup_eq]⟩,
+  ..orderable_topology.t2_space }
 
 end linear_order
+
+lemma preimage_neg [add_group α] : preimage (has_neg.neg : α → α) = image (has_neg.neg : α → α) :=
+(image_eq_preimage_of_inverse neg_neg neg_neg).symm
+
+lemma filter.map_neg [add_group α] : map (has_neg.neg : α → α) = vmap (has_neg.neg : α → α) :=
+funext $ assume f, map_eq_vmap_of_inverse (funext neg_neg) (funext neg_neg)
+
+section topological_add_group
+
+variables [topological_space α] [ordered_comm_group α] [orderable_topology α] [topological_add_group α]
+
+lemma neg_preimage_closure {s : set α} : (λr:α, -r) ⁻¹' closure s = closure ((λr:α, -r) '' s) :=
+have (λr:α, -r) ∘ (λr:α, -r) = id, from funext neg_neg,
+by rw [preimage_neg]; exact
+  (subset.antisymm (image_closure_subset_closure_image continuous_neg') $
+    calc closure ((λ (r : α), -r) '' s) = (λr, -r) '' ((λr, -r) '' closure ((λ (r : α), -r) '' s)) :
+        by rw [←image_comp, this, image_id]
+      ... ⊆ (λr, -r) '' closure ((λr, -r) '' ((λ (r : α), -r) '' s)) :
+        mono_image $ image_closure_subset_closure_image continuous_neg'
+      ... = _ : by rw [←image_comp, this, image_id])
+
+end topological_add_group
 
 section order_topology
 
@@ -526,8 +604,8 @@ forall_sets_neq_empty_iff_neq_bot.mp $ assume t ht,
       let ⟨l, hl, hlt₁⟩ := hl ⟨a', this⟩ in
       have ∃a'∈s, l < a',
         from classical.by_contradiction $ assume : ¬ ∃a'∈s, l < a',
-          have ∀a'∈s, a' ≤ l, from assume a ha, not_lt_iff.mp $ assume ha', this ⟨a, ha, ha'⟩,
-          have ¬ l < a, from not_lt_iff.mpr $ ha.right _ this,
+          have ∀a'∈s, a' ≤ l, from assume a ha, not_lt.1 $ assume ha', this ⟨a, ha, ha'⟩,
+          have ¬ l < a, from not_lt.2 $ ha.right _ this,
           this ‹l < a›,
       let ⟨a', ha', ha'l⟩ := this in
       have a' ∈ t₁, from hlt₁ _ ‹l < a'›  $ ha.left _ ha',
@@ -549,8 +627,8 @@ forall_sets_neq_empty_iff_neq_bot.mp $ assume t ht,
       let ⟨u, hu, hut₁⟩ := hu ⟨a', this⟩ in
       have ∃a'∈s, a' < u,
         from classical.by_contradiction $ assume : ¬ ∃a'∈s, a' < u,
-          have ∀a'∈s, u ≤ a', from assume a ha, not_lt_iff.mp $ assume ha', this ⟨a, ha, ha'⟩,
-          have ¬ a < u, from not_lt_iff.mpr $ ha.right _ this,
+          have ∀a'∈s, u ≤ a', from assume a ha, not_lt.1 $ assume ha', this ⟨a, ha, ha'⟩,
+          have ¬ a < u, from not_lt.2 $ ha.right _ this,
           this ‹a < u›,
       let ⟨a', ha', ha'l⟩ := this in
       have a' ∈ t₁, from hut₁ _ (ha.left _ ha') ‹a' < u›,
@@ -559,7 +637,7 @@ forall_sets_neq_empty_iff_neq_bot.mp $ assume t ht,
 lemma is_lub_of_mem_nhds {s : set α} {a : α} {f : filter α}
   (hsa : a ∈ upper_bounds s) (hsf : s ∈ f.sets) (hfa : f ⊓ nhds a ≠ ⊥) : is_lub s a :=
 ⟨hsa, assume b hb,
-  not_lt_iff.mp $ assume hba,
+  not_lt.1 $ assume hba,
   have s ∩ {a | b < a} ∈ (f ⊓ nhds a).sets,
     from inter_mem_inf_sets hsf (mem_nhds_sets (is_open_lt' _) hba),
   let ⟨x, ⟨hxs, hxb⟩⟩ := inhabited_of_mem_sets hfa this in
@@ -569,7 +647,7 @@ lemma is_lub_of_mem_nhds {s : set α} {a : α} {f : filter α}
 lemma is_glb_of_mem_nhds {s : set α} {a : α} {f : filter α}
   (hsa : a ∈ lower_bounds s) (hsf : s ∈ f.sets) (hfa : f ⊓ nhds a ≠ ⊥) : is_glb s a :=
 ⟨hsa, assume b hb,
-  not_lt_iff.mp $ assume hba,
+  not_lt.1 $ assume hba,
   have s ∩ {a | a < b} ∈ (f ⊓ nhds a).sets,
     from inter_mem_inf_sets hsf (mem_nhds_sets (is_open_gt' _) hba),
   let ⟨x, ⟨hxs, hxb⟩⟩ := inhabited_of_mem_sets hfa this in
@@ -600,7 +678,7 @@ have ∀a'∈s, ¬ b < f a',
       have ha'x : f a' ≤ f x, from hf _ ha' _ hx₃ $ le_of_lt hx₁,
       lt_irrefl _ (lt_of_le_of_lt ha'x hxa')),
 and.intro
-  (assume b' ⟨a', ha', h_eq⟩, h_eq ▸ not_lt_iff.mp $ this _ ha')
+  (assume b' ⟨a', ha', h_eq⟩, h_eq ▸ not_lt.1 $ this _ ha')
   (assume b' hb', le_of_tendsto hnbot hb tendsto_const_nhds $
       mem_inf_sets_of_right $ assume x hx, hb' _ $ mem_image_of_mem _ hx)
 
@@ -628,7 +706,7 @@ have ∀a'∈s, ¬ b > f a',
       have ha'x : f a' ≥ f x, from hf _ hx₃ _ ha' $ le_of_lt hx₁,
       lt_irrefl _ (lt_of_lt_of_le hxa' ha'x)),
 and.intro
-  (assume b' ⟨a', ha', h_eq⟩, h_eq ▸ not_lt_iff.mp $ this _ ha')
+  (assume b' ⟨a', ha', h_eq⟩, h_eq ▸ not_lt.1 $ this _ ha')
   (assume b' hb', le_of_tendsto hnbot tendsto_const_nhds hb $
       mem_inf_sets_of_right $ assume x hx, hb' _ $ mem_image_of_mem _ hx)
 
@@ -656,7 +734,7 @@ have ∀a'∈s, ¬ b > f a',
       have ha'x : f a' ≥ f x, from hf _ ha' _ hx₃ $ le_of_lt hx₁,
       lt_irrefl _ (lt_of_lt_of_le hxa' ha'x)),
 and.intro
-  (assume b' ⟨a', ha', h_eq⟩, h_eq ▸ not_lt_iff.mp $ this _ ha')
+  (assume b' ⟨a', ha', h_eq⟩, h_eq ▸ not_lt.1 $ this _ ha')
   (assume b' hb', le_of_tendsto hnbot tendsto_const_nhds hb $
       mem_inf_sets_of_right $ assume x hx, hb' _ $ mem_image_of_mem _ hx)
 
@@ -669,30 +747,29 @@ lemma orderable_topology_of_nhds_abs
   (h_nhds : ∀a:α, nhds a = (⨅r>0, principal {b | abs (a - b) < r})) : orderable_topology α :=
 orderable_topology.mk $ eq_of_nhds_eq_nhds $ assume a:α, le_antisymm_iff.mpr
 begin
-  simp [infi_and, topological_space.nhds_generate_from, h_nhds, le_infi_iff, -le_principal_iff],
-  constructor,
-  exact assume s ha b hs,
-    match s, ha, hs with
-    | _, h, (or.inl rfl) :=
-      infi_le_of_le (a + - b) $ infi_le_of_le (lt_sub_left_of_add_lt $ by simp; exact h) $
-        principal_mono.mpr $ assume c (hc : abs (a + - c) < a - b),
-        have a + - c < a + - b, from lt_of_le_of_lt (le_abs_self _) hc,
-        show b < c, from lt_of_neg_lt_neg $ lt_of_add_lt_add_left this
-    | _, h, (or.inr rfl) :=
-      infi_le_of_le (b + - a) $ infi_le_of_le (lt_sub_left_of_add_lt $ by simp; exact h) $
-        principal_mono.mpr $ assume c (hc : abs (a + - c) < b + - a),
-        have abs (c + - a) < b + - a, by rw [←abs_neg]; simp [hc],
-        have c + - a < b + - a, from lt_of_le_of_lt (le_abs_self _) this,
-        show c < b, from lt_of_add_lt_add_right this
-    end,
-  { intros r hr,
-    have h : {b | abs (a + -b) < r} = {b | a - r < b} ∩ {b | b < a + r},
-      from (set.ext $ assume b,
-        by simp [abs_lt, -sub_eq_add_neg, (sub_eq_add_neg _ _).symm, sub_lt, lt_sub_iff]),
-    rw [h, ←inf_principal],
+  simp [infi_and, topological_space.nhds_generate_from,
+        h_nhds, le_infi_iff, -le_principal_iff, and_comm],
+  refine ⟨λ s ha b hs, _, λ r hr, _⟩,
+  { rcases hs with rfl | rfl,
+    { refine infi_le_of_le (a - b)
+        (infi_le_of_le (lt_sub_left_of_add_lt $ by simpa using ha) $
+          principal_mono.mpr $ assume c (hc : abs (a - c) < a - b), _),
+      have : a - c < a - b := lt_of_le_of_lt (le_abs_self _) hc,
+      exact lt_of_neg_lt_neg (lt_of_add_lt_add_left this) },
+    { refine infi_le_of_le (b - a)
+        (infi_le_of_le (lt_sub_left_of_add_lt $ by simpa using ha) $
+          principal_mono.mpr $ assume c (hc : abs (a - c) < b - a), _),
+      have : abs (c - a) < b - a, {rw abs_sub; simpa using hc},
+      have : c - a < b - a := lt_of_le_of_lt (le_abs_self _) this,
+      exact lt_of_add_lt_add_right this } },
+  { have h : {b | abs (a + -b) < r} = {b | a - r < b} ∩ {b | b < a + r},
+      from set.ext (assume b,
+        by simp [abs_lt, -sub_eq_add_neg, (sub_eq_add_neg _ _).symm,
+          sub_lt, lt_sub_iff, and_comm, sub_lt_iff_lt_add']),
+    rw [h, ← inf_principal],
     apply le_inf _ _,
-    exact (infi_le_of_le {b : α | a - r < b} $ infi_le_of_le (sub_lt_self a hr) $
-      infi_le_of_le (a - r) $ infi_le _ (or.inl rfl)),
-    exact (infi_le_of_le {b : α | b < a + r} $ infi_le_of_le (lt_add_of_pos_right _ hr) $
-      infi_le_of_le (a + r) $ infi_le _ (or.inr rfl)) }
+    { exact infi_le_of_le {b : α | a - r < b} (infi_le_of_le (sub_lt_self a hr) $
+        infi_le_of_le (a - r) $ infi_le _ (or.inl rfl)) },
+    { exact infi_le_of_le {b : α | b < a + r} (infi_le_of_le (lt_add_of_pos_right _ hr) $
+        infi_le_of_le (a + r) $ infi_le _ (or.inr rfl)) } }
 end

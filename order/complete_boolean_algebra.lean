@@ -14,6 +14,10 @@ variables {α : Type u} {β : Type v} {ι : Sort w}
 
 namespace lattice
 
+/-- A complete distributive lattice is a bit stronger than the name might
+  suggest; perhaps completely distributive lattice is more descriptive,
+  as this class includes a requirement that the lattice join
+  distribute over *arbitrary* infima, and similarly for the dual. -/
 class complete_distrib_lattice α extends complete_lattice α :=
 (infi_sup_le_sup_Inf : ∀a s, (⨅ b ∈ s, a ⊔ b) ≤ a ⊔ Inf s)
 (inf_Sup_le_supr_inf : ∀a s, a ⊓ Sup s ≤ (⨆ b ∈ s, a ⊓ b))
@@ -34,12 +38,13 @@ le_antisymm
 end complete_distrib_lattice
 
 instance [d : complete_distrib_lattice α] : bounded_distrib_lattice α :=
-{ d with 
-  le_sup_inf := assume x y z,
+{ le_sup_inf := assume x y z,
     calc (x ⊔ y) ⊓ (x ⊔ z) ≤ (⨅ b ∈ ({z, y} : set α), x ⊔ b) : by rw insert_of_has_insert; finish
       ... = x ⊔ Inf {z, y} : sup_Inf_eq.symm
-      ... = x ⊔ y ⊓ z : by rw insert_of_has_insert; simp }
+      ... = x ⊔ y ⊓ z : by rw insert_of_has_insert; simp,
+  ..d }
 
+/-- A complete boolean algebra is a completely distributive boolean algebra. -/
 class complete_boolean_algebra α extends boolean_algebra α, complete_distrib_lattice α
 
 section complete_boolean_algebra

@@ -14,6 +14,8 @@ section sorted
 universe variable uu
 variables {α : Type uu} {r : α → α → Prop}
 
+/-- `sorted r l` is the same as `pairwise r l`, preferred in the case that `r`
+  is a `<` or `≤`-like relation (transitive and antisymmetric or asymmetric) -/
 def sorted := @pairwise
 
 @[simp] theorem sorted_nil : sorted r [] := pairwise.nil _
@@ -37,7 +39,7 @@ begin
   induction s₁ with a l₁ h₁ s₁ IH generalizing l₂,
   { rw eq_nil_of_perm_nil p },
   { have : a ∈ l₂ := perm_subset p (mem_cons_self _ _),
-    rcases mem_split this with ⟨u₂, v₂, e⟩, subst e,
+    rcases mem_split this with ⟨u₂, v₂, rfl⟩,
     have p' := (perm_cons a).1 (p.trans perm_middle),
     have := IH p' (pairwise_of_sublist (by simp) s₂), subst l₁,
     change a::u₂ ++ v₂ = u₂ ++ ([a] ++ v₂), rw ← append_assoc, congr,
@@ -46,7 +48,7 @@ begin
         (h₁ _ (by simp [m])),
     rw [(@eq_repeat _ a (length u₂ + 1) (a::u₂)).2,
         (@eq_repeat _ a (length u₂ + 1) (u₂++[a])).2];
-    split; simp [iff_true_intro this] }
+    split; simp [iff_true_intro this, or_comm] }
 end
 
 end sorted
@@ -64,17 +66,18 @@ local infix `≼` : 50 := r
 
 section insertion_sort
 
+/-- `ordered_insert a l` inserts `a` into `l` at such that
+  `ordered_insert a l` is sorted if `l` is. -/
 @[simp] def ordered_insert (a : α) : list α → list α
 | []       := [a]
 | (b :: l) := if a ≼ b then a :: b :: l else b :: ordered_insert l
 
+/-- `insertion_sort l` returns `l` sorted using the insertion sort algorithm. -/
 @[simp] def insertion_sort : list α → list α
 | []       := []
 | (b :: l) := ordered_insert b (insertion_sort l)
 
 section correctness
-parameter [deceqα : decidable_eq α]
-include deceqα
 open perm
 
 theorem perm_ordered_insert (a) : ∀ l : list α, ordered_insert a l ~ a :: l
@@ -95,7 +98,7 @@ include totr transr
 theorem sorted_ordered_insert (a : α) : ∀ l, sorted r l → sorted r (ordered_insert a l)
 | []       h := sorted_singleton a
 | (b :: l) h := begin
-  by_cases a ≼ b with h',
+  by_cases h' : a ≼ b,
   { simpa [ordered_insert, h', h] using λ b' bm, transr h' (rel_of_sorted_cons h _ bm) },
   { suffices : ∀ (b' : α), b' ∈ ordered_insert r a l → r b b',
     { simpa [ordered_insert, h', sorted_ordered_insert l (sorted_of_sorted_cons h)] },
@@ -121,10 +124,12 @@ section merge_sort
 -- TODO(Jeremy): observation: if instead we write (a :: (split l).1, b :: (split l).2), the
 -- equation compiler can't prove the third equation
 
-def split : list α → list α × list α
-| []            := ([], [])
+/-- Split `l` into two lists of approximately equal length.
+
+     split [1, 2, 3, 4, 5] = ([1, 3, 5], [2, 4]) -/
+@[simp] def split : list α → list α × list α
+| []       := ([], [])
 | (a :: l) := let (l₁, l₂) := split l in (a :: l₂, l₁)
-attribute [simp] split
 
 theorem split_cons_of_eq (a : α) {l l₁ l₂ : list α} (h : split l = (l₁, l₂)) :
   split (a :: l) = (a :: l₂, l₁) :=
@@ -157,12 +162,16 @@ theorem perm_split : ∀ {l l₁ l₂ : list α}, split l = (l₁, l₂) → l ~
   exact perm.skip a ((perm_split e).trans perm_app_comm),
 end
 
+/-- Merge two sorted lists into one in linear time.
+
+     merge [1, 2, 4, 5] [0, 1, 3, 4] = [0, 1, 1, 2, 3, 4, 4, 5] -/
 def merge : list α → list α → list α
 | []       l'        := l'
 | l        []        := l
 | (a :: l) (b :: l') := if a ≼ b then a :: merge l (b :: l') else b :: merge (a :: l) l'
 
 include r
+/-- Implementation of a merge sort algorithm to sort a list. -/
 def merge_sort : list α → list α
 | []        := []
 | [a]       := [a]
@@ -187,8 +196,6 @@ begin
 end
 
 section correctness
-parameter [deceqα : decidable_eq α]
-include deceqα
 
 theorem perm_merge : ∀ (l l' : list α), merge l l' ~ l ++ l'
 | []       []        := perm.nil
@@ -228,7 +235,7 @@ theorem sorted_merge : ∀ {l l' : list α}, sorted r l → sorted r l' → sort
   { suffices : ∀ (b' : α) (_ : b' ∈ merge r l (b :: l')), r a b',
     { simpa [merge, h, sorted_merge (sorted_of_sorted_cons h₁) h₂] },
     intros b' bm,
-    rcases (show b' = b ∨ b' ∈ l ∨ b' ∈ l', by simpa using
+    rcases (show b' = b ∨ b' ∈ l ∨ b' ∈ l', by simpa [or.left_comm] using
       perm_subset (perm_merge _ _ _) bm) with be | bl | bl',
     { subst b', assumption },
     { exact rel_of_sorted_cons h₁ _ bl },

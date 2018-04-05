@@ -6,3 +6,9 @@ install:
 
 script:
   - leanpkg test
+  - lean --recursive --export=mathlib.txt
+  - leanchecker mathlib.txt
+
+notifications:
+  webhooks:
+    - https://leanprover.zulipchat.com/api/v1/external/travis?stream=travis&topic=build-status&api_key=SwF1QzwUWol76dCxsYgwHbI6giN3cxGn

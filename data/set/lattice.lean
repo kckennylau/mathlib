@@ -1,11 +1,11 @@
 /-
 Copyright (c) 2014 Jeremy Avigad. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors Jeremy Avigad, Leonardo de Moura, Johannes Hölzl
+Authors Jeremy Avigad, Leonardo de Moura, Johannes Hölzl, Mario Carneiro
 
 -- QUESTION: can make the first argument in ∀ x ∈ a, ... implicit?
 -/
-import logic.basic data.set.basic
+import logic.basic data.set.basic tactic
 import order.complete_boolean_algebra category.basic
 import tactic.finish
 
@@ -51,16 +51,7 @@ instance lattice_set : complete_lattice (set α) :=
   Inf_le       := assume s t t_in a h, h _ t_in }
 
 instance : distrib_lattice (set α) :=
-{ set.lattice_set with
-  le_sup_inf     := assume s t u x ⟨h₁, h₂⟩,
-    match h₁ with
-    | or.inl h₁ := or.inl h₁
-    | or.inr h₁ :=
-      match h₂ with
-      | or.inl h₂ := or.inl h₂
-      | or.inr h₂ := or.inr ⟨h₁, h₂⟩
-      end
-    end }
+{ le_sup_inf := λ s t u x, or_and_distrib_left.2, ..set.lattice_set }
 
 lemma subset.antisymm_iff {α : Type*} {s t : set α} : s = t ↔ (s ⊆ t ∧ t ⊆ s) :=
 le_antisymm_iff
@@ -70,8 +61,10 @@ assume s t, assume h : s ⊆ t, image_subset _ h
 
 /- union and intersection over a family of sets indexed by a type -/
 
+/-- Indexed union of a family of sets -/
 @[reducible] def Union (s : ι → set β) : set β := supr s
 
+/-- Indexed intersection of a family of sets -/
 @[reducible] def Inter (s : ι → set β) : set β := infi s
 
 notation `⋃` binders `, ` r:(scoped f, Union f) := r
@@ -167,6 +160,14 @@ theorem bInter_subset_of_mem {s : set α} {t : α → set β} {x : α} (xs : x �
 show (⨅x ∈ s, t x) ≤ t x,
   from infi_le_of_le x $ infi_le _ xs
 
+theorem bUnion_subset_bUnion_left {s s' : set α} {t : α → set β}
+  (h : s ⊆ s') : (⋃ x ∈ s, t x) ⊆ (⋃ x ∈ s', t x) :=
+bUnion_subset (λ x xs, subset_bUnion_of_mem (h xs))
+
+theorem bInter_subset_bInter_left {s s' : set α} {t : α → set β}
+  (h : s' ⊆ s) : (⋂ x ∈ s, t x) ⊆ (⋂ x ∈ s', t x) :=
+subset_bInter (λ x xs, bInter_subset_of_mem (h xs))
+
 @[simp] theorem bInter_empty (u : α → set β) : (⋂ x ∈ (∅ : set α), u x) = univ :=
 show (⨅x ∈ (∅ : set α), u x) = ⊤, -- simplifier should be able to rewrite x ∈ ∅ to false.
   from infi_emptyset
@@ -196,7 +197,7 @@ begin rw insert_eq, simp [bInter_union] end
 
 theorem bInter_pair (a b : α) (s : α → set β) :
   (⋂ x ∈ ({a, b} : set α), s x) = s a ∩ s b :=
-by rw insert_of_has_insert; simp
+by rw insert_of_has_insert; simp [inter_comm]
 
 @[simp] theorem bUnion_empty (s : α → set β) : (⋃ x ∈ (∅ : set α), s x) = ∅ :=
 supr_emptyset
@@ -219,8 +220,9 @@ begin rw [insert_eq], simp [bUnion_union] end
 
 theorem bUnion_pair (a b : α) (s : α → set β) :
   (⋃ x ∈ ({a, b} : set α), s x) = s a ∪ s b :=
-by rw insert_of_has_insert; simp
+by rw insert_of_has_insert; simp [union_comm]
 
+/-- Intersection of a set of sets. -/
 @[reducible] def sInter (S : set (set α)) : set α := Inf S
 
 prefix `⋂₀`:110 := sInter
@@ -309,11 +311,11 @@ theorem inter_empty_of_inter_sUnion_empty {s t : set α} {S : set (set α)} (hs 
 eq_empty_of_subset_empty
   begin rw ←h, apply inter_subset_inter_left, apply subset_sUnion_of_mem hs end
 
-theorem Union_eq_sUnion_image (s : α → set β) : (⋃ i, s i) = ⋃₀ (s '' univ) :=
-by simp
+theorem Union_eq_sUnion_image (s : α → set β) : (⋃ i, s i) = ⋃₀ (range s) :=
+by rw [← image_univ, sUnion_image]; simp
 
-theorem Inter_eq_sInter_image {α I : Type} (s : I → set α) : (⋂ i, s i) = ⋂₀ (s '' univ) :=
-by simp
+theorem Inter_eq_sInter_image {α I : Type} (s : I → set α) : (⋂ i, s i) = ⋂₀ (range s) :=
+by rw [← image_univ, sInter_image]; simp
 
 lemma sUnion_mono {s t : set (set α)} (h : s ⊆ t) : (⋃₀ s) ⊆ (⋃₀ t) :=
 sUnion_subset $ assume t' ht', subset_sUnion_of_mem $ h ht'
@@ -331,9 +333,11 @@ lemma Union_subset_Union_const {ι₂ : Sort x} {s : set α} (h : ι → ι₂) 
 lemma sUnion_eq_Union {s : set (set α)} : (⋃₀ s) = (⋃ (i : set α) (h : i ∈ s), i) :=
 set.ext $ by simp
 
+lemma sUnion_eq_Union' {s : set (set α)} : (⋃₀ s) = (⋃ (i : s), i) :=
+set.ext $ λ x, by simp; unfold_coes; simp
+
 instance : complete_boolean_algebra (set α) :=
-{ set.lattice_set with
-  neg                 := compl,
+{ neg                 := compl,
   sub                 := (\),
   inf_neg_eq_bot      := assume s, ext $ assume x, ⟨assume ⟨h, nh⟩, nh h, false.elim⟩,
   sup_neg_eq_top      := assume s, ext $ assume x, ⟨assume h, trivial, assume _, classical.em $ x ∈ s⟩,
@@ -344,7 +348,9 @@ instance : complete_boolean_algebra (set α) :=
       or.imp_right
         (assume hn : x ∉ s, assume i hi, or.resolve_left (h i hi) hn)
         (classical.em $ x ∈ s),
-  inf_Sup_le_supr_inf := assume s t x, show x ∈ s ∩ (⋃₀ t) → x ∈ (⋃ b ∈ t, s ∩ b), by simp [-and_imp] }
+  inf_Sup_le_supr_inf := assume s t x, show x ∈ s ∩ (⋃₀ t) → x ∈ (⋃ b ∈ t, s ∩ b),
+    by simp [-and_imp, and.left_comm],
+  ..set.lattice_set }
 
 theorem union_sdiff_same {a b : set α} : a ∪ (b \ a) = a ∪ b :=
 lattice.sup_sub_same
@@ -362,7 +368,7 @@ theorem sdiff_subset_sdiff {a b c d : set α} : a ⊆ c → d ⊆ b → a \ b �
 sup_neg_eq_top
 
 @[simp] theorem sdiff_singleton_eq_same {a : α} {s : set α} (h : a ∉ s) : s \ {a} = s :=
-sub_eq_left $ eq_empty_of_forall_not_mem $ assume x ⟨ht, ha⟩,
+sub_eq_left $ eq_empty_iff_forall_not_mem.2 $ assume x ⟨ht, ha⟩,
   begin simp at ha, simp [ha] at ht, exact h ht end
 
 @[simp] theorem insert_sdiff_singleton {a : α} {s : set α} :
@@ -385,10 +391,10 @@ set.ext $ by simp
 lemma sdiff_eq: s₁ \ s₂ = s₁ ∩ -s₂ := rfl
 
 lemma union_sdiff_left : (s₁ ∪ s₂) \ s₂ = s₁ \ s₂ :=
-set.ext $ assume x, by simp [iff_def] {contextual := tt}
+set.ext $ by simp [or_and_distrib_right]
 
 lemma union_sdiff_right : (s₂ ∪ s₁) \ s₂ = s₁ \ s₂ :=
-set.ext $ assume x, by simp [iff_def] {contextual := tt}
+set.ext $ by simp [or_and_distrib_right]
 
 end sdiff
 
@@ -410,19 +416,23 @@ variables {p : Prop} {μ : p → set α}
 
 end
 
-end set
-
 section image
+
+@[congr]
+lemma image_congr {f g : α → β} {s : set α} (h : ∀a∈s, f a = g a) : f '' s = g '' s :=
+set.ext $ assume x, ⟨
+  assume ⟨a, ha, eq⟩, ⟨a, ha, eq ▸ (h _ ha).symm⟩,
+  assume ⟨a, ha, eq⟩, ⟨a, ha, eq ▸ h _ ha⟩⟩
 
 lemma image_Union {f : α → β} {s : ι → set α} : f '' (⋃ i, s i) = (⋃i, f '' s i) :=
 begin
   apply set.ext, intro x,
-  simp [image],
-  exact ⟨assume ⟨a, h, i, hi⟩, ⟨i, a, h, hi⟩, assume ⟨i, a, h, hi⟩, ⟨a, h, i, hi⟩⟩
+  simp [image, exists_and_distrib_right.symm, -exists_and_distrib_right],
+  exact exists_swap
 end
 
 lemma univ_subtype {p : α → Prop} : (univ : set (subtype p)) = (⋃x (h : p x), {⟨x, h⟩})  :=
-set.ext $ assume ⟨x, h⟩, begin simp, exact ⟨x, h, rfl⟩ end
+set.ext $ assume ⟨x, h⟩, by simp [h]
 
 lemma subtype_val_image {p : α → Prop} {s : set (subtype p)} :
   subtype.val '' s = {x | ∃h : p x, (⟨x, h⟩ : subtype p) ∈ s} :=
@@ -431,6 +441,14 @@ set.ext $ assume a,
   assume ⟨ha, in_s⟩, ⟨⟨a, ha⟩, in_s, rfl⟩⟩
 
 end image
+
+section range
+
+lemma subtype_val_range {p : α → Prop} :
+  range (@subtype.val _ p) = {x | p x} :=
+by rw ← image_univ; simp [-image_univ, subtype_val_image]
+
+end range
 
 section preimage
 
@@ -446,16 +464,22 @@ set.ext $ by simp [preimage]
 
 end preimage
 
+theorem monotone_prod [preorder α] {f : α → set β} {g : α → set γ}
+  (hf : monotone f) (hg : monotone g) : monotone (λx, set.prod (f x) (g x)) :=
+assume a b h, prod_mono (hf h) (hg h)
+
 instance : monad set :=
-{ monad .
-  pure       := λ(α : Type u) a, {a},
+{ pure       := λ(α : Type u) a, {a},
   bind       := λ(α β : Type u) s f, ⋃i∈s, f i,
-  map        := λ(α β : Type u), set.image,
-  pure_bind  := assume α β x f, by simp,
+  map        := λ(α β : Type u), set.image }
+
+instance : is_lawful_monad set :=
+{ pure_bind  := assume α β x f, by simp,
   bind_assoc := assume α β γ s f g, set.ext $ assume a,
-    by simp; exact ⟨assume ⟨b, ag, a, as, bf⟩, ⟨a, as, b, bf, ag⟩,
-      assume ⟨a, as, b, bf, ag⟩, ⟨b, ag, a, as, bf⟩⟩,
-  id_map     := assume α, functor.id_map,
+    by simp [exists_and_distrib_right.symm, -exists_and_distrib_right,
+             exists_and_distrib_left.symm, -exists_and_distrib_left, and_assoc];
+       exact exists_swap,
+  id_map     := assume α, id_map,
   bind_pure_comp_eq_map := assume α β f s, set.ext $ by simp [set.image, eq_comm] }
 
 section monad
@@ -470,16 +494,20 @@ begin
   simp [seq_eq_bind_map],
   apply exists_congr,
   intro f',
-  exact ⟨assume ⟨hf', a, ha, h_eq⟩, ⟨a, h_eq.symm, ha, hf'⟩,
-    assume ⟨a, h_eq, ha, hf'⟩, ⟨hf', a, ha, h_eq.symm⟩⟩
+  exact ⟨assume ⟨hf', a, ha, h_eq⟩, ⟨a, ha, hf', h_eq.symm⟩,
+    assume ⟨a, ha, hf', h_eq⟩, ⟨hf', a, ha, h_eq.symm⟩⟩
 end
 
 end monad
+
+end set
 
 /- disjoint sets -/
 
 section disjoint
 variable [semilattice_inf_bot α]
+/-- Two elements of a lattice are disjoint if their inf is the bottom element.
+  (This generalizes disjoint sets, viewed as members of the subset lattice.) -/
 def disjoint (a b : α) : Prop := a ⊓ b = ⊥
 
 theorem disjoint_symm {a b : α} : disjoint a b → disjoint b a :=

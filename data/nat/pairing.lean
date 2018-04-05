@@ -10,9 +10,11 @@ open prod decidable
 
 namespace nat
 
+/-- Pairing function for the natural numbers. -/
 def mkpair (a b : nat) : nat :=
 if a < b then b*b + a else a*a + a + b
 
+/-- Unpairing function for the natural numbers. -/
 def unpair (n : nat) : nat × nat :=
 let s := sqrt n in
 if n - s*s < s then (n - s*s, s) else (s, n - s*s - s)
@@ -21,7 +23,7 @@ theorem mkpair_unpair (n : nat) : mkpair (unpair n).1 (unpair n).2 = n :=
 let s := sqrt n in begin
   dsimp [unpair], change sqrt n with s,
   have sm : s * s + (n - s * s) = n := nat.add_sub_cancel' (sqrt_le _),
-  by_cases n - s * s < s with h; simp [h, mkpair],
+  by_cases h : n - s * s < s; simp [h, mkpair],
   { exact sm },
   { have hl : n - s*s - s ≤ s :=
       nat.sub_le_left_of_le_add (nat.sub_le_left_of_le_add $
@@ -56,7 +58,7 @@ end
 theorem unpair_lt {n : nat} (n1 : n ≥ 1) : (unpair n).1 < n :=
 let s := sqrt n in begin
   simp [unpair], change sqrt n with s,
-  by_cases n - s * s < s with h; simp [h],
+  by_cases h : n - s * s < s; simp [h],
   { exact lt_of_lt_of_le h (sqrt_le_self _) },
   { simp at h,
     have s0 : s > 0 := sqrt_pos.2 n1,

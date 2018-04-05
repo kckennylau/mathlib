@@ -16,8 +16,8 @@ Unfortunately, this only holds if t₁ and t₂ are second-countable topologies.
 -/
 import analysis.measure_theory.measurable_space analysis.real
 
-open classical set lattice
-local attribute [instance] decidable_inhabited prop_decidable
+open classical set lattice real
+local attribute [instance] prop_decidable
 
 universes u v w x y
 variables {α : Type u} {β : Type v} {γ : Type w} {δ : Type x} {ι : Sort y} {s t u : set α}
@@ -37,13 +37,13 @@ le_antisymm
     begin
       rw [hs] at hu,
       induction hu,
-      case generate_open.basic u hu
+      case generate_open.basic : u hu
       { exact generate_measurable.basic u hu },
       case generate_open.univ
       { exact @is_measurable_univ α (generate_from s) },
-      case generate_open.inter s₁ s₂ _ _ hs₁ hs₂
+      case generate_open.inter : s₁ s₂ _ _ hs₁ hs₂
       { exact @is_measurable_inter α (generate_from s) _ _ hs₁ hs₂ },
-      case generate_open.sUnion f hf ih {
+      case generate_open.sUnion : f hf ih {
         have ht' : ∀u∈f, t.is_open u, { rwa [hs] },
         let b' := {u ∈ b | u ⊆ (⋃₀ f) ∧ ∃v, v ∈ f ∧ u ⊆ v },
         have : ∀u∈b', ∃v, v ∈ f ∧ u ⊆ v,
@@ -55,7 +55,7 @@ le_antisymm
           from subset.antisymm
             (assume a ⟨u, hu, hau⟩,
               have u ∈ (nhds a).sets, from mem_nhds_sets (ht' _ hu) hau,
-              let ⟨u', hu', hau', hu'u⟩ := mem_nhds_of_is_topological_basis hb₃ this in
+              let ⟨u', hu', hau', hu'u⟩ := (mem_nhds_of_is_topological_basis hb₃).1 this in
               have u' ∈ b', from ⟨hu', subset.trans hu'u (subset_sUnion_of_mem hu), u, hu, hu'u⟩,
               by simp; exact ⟨u', this, (hv u' this).right hau'⟩)
             (Union_subset $ assume ⟨u', hu'⟩, subset_sUnion_of_mem $ (hv u' hu').left),
@@ -169,24 +169,6 @@ open topological_space
 lemma is_topological_basis_Ioo_rat :
   @is_topological_basis ℝ _ (⋃(a b : ℚ) (h : a < b), {Ioo a b}) :=
 is_topological_basis_of_open_of_nhds
-  (assume t₁ t₂ ht₁ ht₂ h,
-    have ∃a b:ℚ, a < b ∧ t₁ = Ioo a b, by simpa using ht₁,
-    let ⟨a₁, b₁, hab₁, eq₁⟩ := this in
-    have ∃a b:ℚ, a < b ∧ t₂ = Ioo a b, by simpa using ht₂,
-    let ⟨a₂, b₂, hab₂, eq₂⟩ := this in
-    have t₁₂ : t₁ ∩ t₂ = Ioo (max a₁ a₂) (min b₁ b₂),
-      by simp [eq₁, eq₂, Ioo_inter_Ioo],
-    have max a₁ a₂ < min b₁ b₂,
-      from have ∃a, a ∈ Ioo (max a₁ a₂:ℝ) (min b₁ b₂),
-        from ne_empty_iff_exists_mem.mp $ by simp [t₁₂.symm, h],
-      let ⟨c, hc₁, hc₂⟩ := this in
-      (@rat.cast_lt ℝ _ _ _).1 $ by simpa using lt_trans hc₁ hc₂,
-    by simp [t₁₂]; exact ⟨max a₁ a₂, min b₁ b₂, this, by simp⟩)
-  (suffices ∀r, ∃(t : set ℝ), r ∈ t ∧ ∃a b : ℚ, t = Ioo a b ∧ a < b,
-      by simpa,
-    assume r,
-    let ⟨a, ha⟩ := exists_rat_lt r, ⟨b, hb⟩ := exists_lt_rat r in
-    ⟨Ioo a b, ⟨ha, hb⟩, a, b, rfl, rat.cast_lt.1 $ lt_trans ha hb⟩)
   begin simp [is_open_Ioo] {contextual:=tt} end
   (assume a v hav hv,
     let
@@ -220,10 +202,10 @@ have ∀a b : ℚ, a < b → g.is_measurable (Ioo a b),
     from assume q, g.is_measurable_compl _ $ hg q,
   have (⋃c>a, - Iio (c:ℝ)) ∩ Iio b = Ioo a b,
     from set.ext $ assume x,
-    have h₁ : x < b → ∀p:ℚ, p > a → (p:ℝ) ≤ x → (a:ℝ) < x,
-      from assume hxb p hpa hpx, lt_of_lt_of_le (rat.cast_lt.2 hpa) hpx,
-    have h₂ : x < b → (a:ℝ) < x → (∃ (i : ℚ), i > a ∧ (i:ℝ) ≤ x),
-      from assume hxb hax,
+    have h₁ : ∀p:ℚ, p > a → (p:ℝ) ≤ x → x < b → (a:ℝ) < x,
+      from assume p hpa hpx hxb, lt_of_lt_of_le (rat.cast_lt.2 hpa) hpx,
+    have h₂ : (a:ℝ) < x → x < b → (∃ (i : ℚ), i > a ∧ (i:ℝ) ≤ x),
+      from assume hax hxb,
       let ⟨c, hac, hcx⟩ := exists_rat_btwn hax in
       ⟨c, rat.cast_lt.1 hac, le_of_lt hcx⟩,
     by simp [iff_def, Iio, Ioo] {contextual := tt}; exact ⟨h₁, h₂⟩,

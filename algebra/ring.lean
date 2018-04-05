@@ -3,9 +3,9 @@ Copyright (c) 2014 Jeremy Avigad. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Jeremy Avigad, Leonardo de Moura, Floris van Doorn
 -/
-import algebra.group
+import algebra.group tactic data.set.basic
 
-universe u
+universes u v
 variable {α : Type u}
 
 section
@@ -13,6 +13,9 @@ section
 
   theorem mul_two (n : α) : n * 2 = n + n :=
   (left_distrib n 1 1).trans (by simp)
+  
+  theorem bit0_eq_two_mul (n : α) : bit0 n = 2 * n :=
+  (two_mul _).symm
 end
 
 structure units (α : Type u) [semiring α] :=
@@ -101,6 +104,7 @@ section
     { intro ha, apply h, simp [ha] },
     { intro hb, apply h, simp [hb] }
   end
+
 end
 
 section comm_ring
@@ -113,7 +117,35 @@ section comm_ring
   ⟨dvd_of_neg_dvd, neg_dvd_of_dvd⟩
 end comm_ring
 
+def nonunits (α : Type u) [comm_ring α] : set α := { x | ¬∃ y, y * x = 1 }
+
+class is_ring_hom {α : Type u} {β : Type v} [comm_ring α] [comm_ring β] (f : α → β) : Prop :=
+(map_add : ∀ {x y}, f (x + y) = f x + f y)
+(map_mul : ∀ {x y}, f (x * y) = f x * f y)
+(map_one : f 1 = 1)
+
+namespace is_ring_hom
+
+variables {β : Type v} [comm_ring α] [comm_ring β]
+variables (f : α → β) [is_ring_hom f] {x y : α}
+
+lemma map_zero : f 0 = 0 :=
+calc f 0 = f (0 + 0) - f 0 : by rw [map_add f]; simp
+     ... = 0 : by simp
+
+lemma map_neg : f (-x) = -f x :=
+calc f (-x) = f (-x + x) - f x : by rw [map_add f]; simp
+        ... = -f x : by simp [map_zero f]
+
+lemma map_sub : f (x - y) = f x - f y :=
+by simp [map_add f, map_neg f]
+
+end is_ring_hom
+
 set_option old_structure_cmd true
+/-- A domain is a ring with no zero divisors, i.e. satisfying
+  the condition `a * b = 0 ↔ a = 0 ∨ b = 0`. Alternatively, a domain
+  is an integral domain without assuming commutativity of multiplication. -/
 class domain (α : Type u) extends ring α, no_zero_divisors α, zero_ne_one_class α
 
 section domain
@@ -153,7 +185,7 @@ section
   variables [s : integral_domain α] (a b c d e : α)
   include s
 
-  instance integral_domain.to_domain : domain α := {s with}
+  instance integral_domain.to_domain : domain α := {..s}
 
   theorem eq_of_mul_eq_mul_right_of_ne_zero {a b c : α} (ha : a ≠ 0) (h : b * a = c * a) : b = c :=
   have b * a - c * a = 0, by simp [h],
@@ -174,17 +206,3 @@ section
   exists_congr $ λ d, by rw [mul_right_comm, domain.mul_right_inj hc]
 
 end
-
-section division_ring
-variables [division_ring α] {a b c : α}
-
-lemma add_div : (a + b) / c = a / c + b / c :=
-by rw [div_eq_mul_one_div, add_mul, ←div_eq_mul_one_div, ←div_eq_mul_one_div]
-
-lemma div_eq_mul_inv : a / b = a * b⁻¹ :=
-by rw [div_eq_mul_one_div, inv_eq_one_div]
-
-lemma neg_inv (h : a ≠ 0) : - a⁻¹ = (- a)⁻¹ :=
-by rwa [inv_eq_one_div, inv_eq_one_div, div_neg_eq_neg_div]
-
-end division_ring

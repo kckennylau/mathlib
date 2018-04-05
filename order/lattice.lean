@@ -30,17 +30,23 @@ namespace lattice
 reserve infixl ` ⊓ `:70
 reserve infixl ` ⊔ `:65
 
+/-- Typeclass for the `⊤` (`\top`) notation -/
 class has_top (α : Type u) := (top : α)
+/-- Typeclass for the `⊥` (`\bot`) notation -/
 class has_bot (α : Type u) := (bot : α)
+/-- Typeclass for the `⊔` (`\lub`) notation -/
 class has_sup (α : Type u) := (sup : α → α → α)
+/-- Typeclass for the `⊓` (`\glb`) notation -/
 class has_inf (α : Type u) := (inf : α → α → α)
-class has_imp (α : Type u) := (imp : α → α → α) /- Better name -/
 
 infix ⊔ := has_sup.sup
 infix ⊓ := has_inf.inf
 notation `⊤` := has_top.top _
 notation `⊥` := has_bot.bot _
 
+/-- An `order_top` is a partial order with a maximal element.
+  (We could state this on preorders, but then it wouldn't be unique
+  so distinguishing one would seem odd.) -/
 class order_top (α : Type u) extends has_top α, partial_order α :=
 (le_top : ∀ a : α, a ≤ ⊤)
 
@@ -65,6 +71,9 @@ assume h, lt_irrefl a (lt_of_le_of_lt le_top h)
 
 end order_top
 
+/-- An `order_bot` is a partial order with a minimal element.
+  (We could state this on preorders, but then it wouldn't be unique
+  so distinguishing one would seem odd.) -/
 class order_bot (α : Type u) extends has_bot α, partial_order α :=
 (bot_le : ∀ a : α, ⊥ ≤ a)
 
@@ -91,6 +100,9 @@ assume ha, hb $ bot_unique $ ha ▸ hab
 
 end order_bot
 
+/-- A `semilattice_sup` is a join-semilattice, that is, a partial order
+  with a join (a.k.a. lub / least upper bound, sup / supremum) operation
+  `⊔` which is the least element larger than both factors. -/
 class semilattice_sup (α : Type u) extends has_sup α, partial_order α :=
 (le_sup_left : ∀ a b : α, a ≤ a ⊔ b)
 (le_sup_right : ∀ a b : α, b ≤ a ⊔ b)
@@ -99,13 +111,13 @@ class semilattice_sup (α : Type u) extends has_sup α, partial_order α :=
 section semilattice_sup
 variables {α : Type u} [semilattice_sup α] {a b c d : α}
 
-theorem le_sup_left : a ≤ a ⊔ b :=
+@[simp] theorem le_sup_left : a ≤ a ⊔ b :=
 semilattice_sup.le_sup_left a b
 
 @[ematch] theorem le_sup_left' : a ≤ (: a ⊔ b :) :=
 semilattice_sup.le_sup_left a b
 
-theorem le_sup_right : b ≤ a ⊔ b :=
+@[simp] theorem le_sup_right : b ≤ a ⊔ b :=
 semilattice_sup.le_sup_right a b
 
 @[ematch] theorem le_sup_right' : b ≤ (: a ⊔ b :) :=
@@ -135,6 +147,12 @@ by apply le_antisymm; finish
 theorem sup_le_sup (h₁ : a ≤ b) (h₂ : c ≤ d) : a ⊔ c ≤ b ⊔ d :=
 by finish
 
+theorem sup_le_sup_left (h₁ : a ≤ b) (c) : c ⊔ a ≤ c ⊔ b :=
+by finish
+
+theorem sup_le_sup_right (h₁ : a ≤ b) (c) : a ⊔ c ≤ b ⊔ c :=
+by finish
+
 theorem le_of_sup_eq (h : a ⊔ b = b) : a ≤ b :=
 by finish
 
@@ -155,6 +173,9 @@ instance semilattice_sup_to_is_associative [semilattice_sup α] : is_associative
 
 end semilattice_sup
 
+/-- A `semilattice_sup` is a meet-semilattice, that is, a partial order
+  with a meet (a.k.a. glb / greatest lower bound, inf / infimum) operation
+  `⊓` which is the greatest element smaller than both factors. -/
 class semilattice_inf (α : Type u) extends has_inf α, partial_order α :=
 (inf_le_left : ∀ a b : α, a ⊓ b ≤ a)
 (inf_le_right : ∀ a b : α, a ⊓ b ≤ b)
@@ -163,13 +184,13 @@ class semilattice_inf (α : Type u) extends has_inf α, partial_order α :=
 section semilattice_inf
 variables {α : Type u} [semilattice_inf α] {a b c d : α}
 
-theorem inf_le_left : a ⊓ b ≤ a :=
+@[simp] theorem inf_le_left : a ⊓ b ≤ a :=
 semilattice_inf.inf_le_left a b
 
 @[ematch] theorem inf_le_left' : (: a ⊓ b :) ≤ a :=
 semilattice_inf.inf_le_left a b
 
-theorem inf_le_right : a ⊓ b ≤ b :=
+@[simp] theorem inf_le_right : a ⊓ b ≤ b :=
 semilattice_inf.inf_le_right a b
 
 @[ematch] theorem inf_le_right' : (: a ⊓ b :) ≤ b :=
@@ -217,6 +238,7 @@ instance semilattice_inf_to_is_associative [semilattice_inf α] : is_associative
 
 end semilattice_inf
 
+/-- A `semilattice_sup_top` is a semilattice with top and join. -/
 class semilattice_sup_top (α : Type u) extends order_top α, semilattice_sup α
 
 section semilattice_sup_top
@@ -230,6 +252,7 @@ sup_of_le_right le_top
 
 end semilattice_sup_top
 
+/-- A `semilattice_sup_bot` is a semilattice with bottom and join. -/
 class semilattice_sup_bot (α : Type u) extends order_bot α, semilattice_sup α
 
 section semilattice_sup_bot
@@ -246,6 +269,7 @@ by rw [eq_bot_iff, sup_le_iff]; simp
 
 end semilattice_sup_bot
 
+/-- A `semilattice_inf_top` is a semilattice with top and meet. -/
 class semilattice_inf_top (α : Type u) extends order_top α, semilattice_inf α
 
 section semilattice_inf_top
@@ -262,6 +286,7 @@ by rw [eq_top_iff, le_inf_iff]; simp
 
 end semilattice_inf_top
 
+/-- A `semilattice_inf_bot` is a semilattice with bottom and meet. -/
 class semilattice_inf_bot (α : Type u) extends order_bot α, semilattice_inf α
 
 section semilattice_inf_bot
@@ -277,6 +302,7 @@ end semilattice_inf_bot
 
 /- Lattices -/
 
+/-- A lattice is a join-semilattice which is also a meet-semilattice. -/
 class lattice (α : Type u) extends semilattice_sup α, semilattice_inf α
 
 section lattice
@@ -298,11 +324,57 @@ le_antisymm (by finish) (by finish)
 
 end lattice
 
+variables {α : Type u} {x y z w : α}
+
+/-- A distributive lattice is a lattice that satisfies any of four
+  equivalent distribution properties (of sup over inf or inf over sup,
+  on the left or right). A classic example of a distributive lattice
+  is the lattice of subsets of a set, and in fact this example is
+  generic in the sense that every distributive lattice is realizable
+  as a sublattice of a powerset lattice. -/
+class distrib_lattice α extends lattice α :=
+(le_sup_inf : ∀x y z : α, (x ⊔ y) ⊓ (x ⊔ z) ≤ x ⊔ (y ⊓ z))
+
+section distrib_lattice
+variables [distrib_lattice α]
+
+theorem le_sup_inf : ∀{x y z : α}, (x ⊔ y) ⊓ (x ⊔ z) ≤ x ⊔ (y ⊓ z) :=
+distrib_lattice.le_sup_inf
+
+theorem sup_inf_left : x ⊔ (y ⊓ z) = (x ⊔ y) ⊓ (x ⊔ z) :=
+le_antisymm sup_inf_le le_sup_inf
+
+theorem sup_inf_right : (y ⊓ z) ⊔ x = (y ⊔ x) ⊓ (z ⊔ x) :=
+by simp [sup_inf_left, λy:α, @sup_comm α _ y x]
+
+theorem inf_sup_left : x ⊓ (y ⊔ z) = (x ⊓ y) ⊔ (x ⊓ z) :=
+calc x ⊓ (y ⊔ z) = (x ⊓ (x ⊔ z)) ⊓ (y ⊔ z)       : by rw [inf_sup_self]
+             ... = x ⊓ ((x ⊓ y) ⊔ z)             : by simp [inf_assoc, sup_inf_right]
+             ... = (x ⊔ (x ⊓ y)) ⊓ ((x ⊓ y) ⊔ z) : by rw [sup_inf_self]
+             ... = ((x ⊓ y) ⊔ x) ⊓ ((x ⊓ y) ⊔ z) : by rw [sup_comm]
+             ... = (x ⊓ y) ⊔ (x ⊓ z)             : by rw [sup_inf_left]
+
+theorem inf_sup_right : (y ⊔ z) ⊓ x = (y ⊓ x) ⊔ (z ⊓ x) :=
+by simp [inf_sup_left, λy:α, @inf_comm α _ y x]
+
+lemma eq_of_sup_eq_inf_eq {α : Type u} [distrib_lattice α] {a b c : α}
+  (h₁ : b ⊓ a = c ⊓ a) (h₂ : b ⊔ a = c ⊔ a) : b = c :=
+le_antisymm
+  (calc b ≤ (c ⊓ a) ⊔ b     : le_sup_right
+    ... = (c ⊔ b) ⊓ (a ⊔ b) : sup_inf_right
+    ... = c ⊔ (c ⊓ a)       : by rw [←h₁, sup_inf_left, ←h₂]; simp [sup_comm]
+    ... = c                 : sup_inf_self)
+  (calc c ≤ (b ⊓ a) ⊔ c     : le_sup_right
+    ... = (b ⊔ c) ⊓ (a ⊔ c) : sup_inf_right
+    ... = b ⊔ (b ⊓ a)       : by rw [h₁, sup_inf_left, h₂]; simp [sup_comm]
+    ... = b                 : sup_inf_self)
+
+end distrib_lattice
+
 /- Lattices derived from linear orders -/
 
 instance lattice_of_decidable_linear_order {α : Type u} [o : decidable_linear_order α] : lattice α :=
-{ o with
-  sup          := max,
+{ sup          := max,
   le_sup_left  := le_max_left,
   le_sup_right := le_max_right,
   sup_le       := assume a b c, max_le,
@@ -310,6 +382,16 @@ instance lattice_of_decidable_linear_order {α : Type u} [o : decidable_linear_o
   inf          := min,
   inf_le_left  := min_le_left,
   inf_le_right := min_le_right,
-  le_inf       := assume a b c, le_min }
+  le_inf       := assume a b c, le_min,
+  ..o }
+
+
+instance distrib_lattice_of_decidable_linear_order {α : Type u} [o : decidable_linear_order α] : distrib_lattice α :=
+{ le_sup_inf := assume a b c,
+    match le_total b c with
+    | or.inl h := inf_le_left_of_le $ sup_le_sup_left (le_inf (le_refl b) h) _
+    | or.inr h := inf_le_right_of_le $ sup_le_sup_left (le_inf h (le_refl c)) _
+    end,
+  ..lattice.lattice_of_decidable_linear_order }
 
 end lattice

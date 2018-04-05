@@ -6,22 +6,12 @@ Authors: Simon Hudon, Mario Carneiro
 Evaluating arithmetic expressions including *, +, -, ^, ≤
 -/
 
-import algebra.group_power data.rat tactic.interactive data.hash_map
+import algebra.group_power data.rat tactic.interactive
 
 universes u v w
 open tactic
 
 namespace expr
-
-protected meta def to_pos_nat : expr → option ℕ
-| `(has_one.one _) := some 1
-| `(bit0 %%e) := bit0 <$> e.to_pos_nat
-| `(bit1 %%e) := bit1 <$> e.to_pos_nat
-| _           := none
-
-protected meta def to_nat : expr → option ℕ
-| `(has_zero.zero _) := some 0
-| e                  := e.to_pos_nat
 
 protected meta def to_pos_rat : expr → option ℚ
 | `(%%e₁ / %%e₂) := do m ← e₁.to_nat, n ← e₂.to_nat, some (rat.mk m n)
@@ -30,12 +20,6 @@ protected meta def to_pos_rat : expr → option ℚ
 protected meta def to_rat : expr → option ℚ
 | `(has_neg.neg %%e) := do q ← e.to_pos_rat, some (-q)
 | e                  := e.to_pos_rat
-
-protected meta def of_nat (α : expr) : ℕ → tactic expr :=
-nat.binary_rec
-  (tactic.mk_app ``has_zero.zero [α])
-  (λ b n tac, if n = 0 then mk_mapp ``has_one.one [some α, none] else
-    do e ← tac, tactic.mk_app (cond b ``bit1 ``bit0) [e])
 
 protected meta def of_rat (α : expr) : ℚ → tactic expr
 | ⟨(n:ℕ), d, h, c⟩   := do
@@ -49,6 +33,7 @@ protected meta def of_rat (α : expr) : ℚ → tactic expr
     e₂ ← expr.of_nat α d,
     tactic.mk_app ``has_div.div [e₁, e₂]),
   tactic.mk_app ``has_neg.neg [e]
+
 end expr
 
 namespace norm_num
@@ -58,7 +43,8 @@ theorem bit0_zero [add_group α] : bit0 (0 : α) = 0 := add_zero _
  
 theorem bit1_zero [add_group α] [has_one α] : bit1 (0 : α) = 1 :=
 by rw [bit1, bit0_zero, zero_add]
- 
+
+local infix ` ^ ` := monoid.pow
 lemma pow_bit0_helper [monoid α] (a t : α) (b : ℕ) (h : a ^ b = t) :
   a ^ bit0 b = t * t :=
 by simp [pow_bit0, h]
@@ -71,63 +57,44 @@ lemma lt_add_of_pos_helper [ordered_cancel_comm_monoid α]
   (a b c : α) (h : a + b = c) (h₂ : 0 < b) : a < c :=
 h ▸ (lt_add_iff_pos_right _).2 h₂
 
-meta structure instance_cache :=
-(α : expr)
-(univ : level)
-(inst : hash_map name (λ_, expr))
+lemma nat_div_helper (a b q r : ℕ) (h : r + q * b = a) (h₂ : r < b) : a / b = q :=
+by rw [← h, nat.add_mul_div_right _ _ (lt_of_le_of_lt (nat.zero_le _) h₂),
+       nat.div_eq_of_lt h₂, zero_add]
 
-meta def mk_instance_cache (α : expr) : tactic instance_cache :=
-do u ← mk_meta_univ,
-   infer_type α >>= unify (expr.sort (level.succ u)),
-   u ← get_univ_assignment u,
-   return ⟨α, u, mk_hash_map (λ n, (expr.const n []).hash)⟩
+lemma int_div_helper (a b q r : ℤ) (h : r + q * b = a) (h₁ : 0 ≤ r) (h₂ : r < b) : a / b = q :=
+by rw [← h, int.add_mul_div_right _ _ (ne_of_gt (lt_of_le_of_lt h₁ h₂)),
+       int.div_eq_zero_of_lt h₁ h₂, zero_add]
 
-namespace instance_cache
-meta def get (c : instance_cache) (n : name) : tactic (instance_cache × expr) :=
-match c.inst.find n with
-| some i := return (c, i)
-| none := do e ← mk_app n [c.α] >>= mk_instance,
-  return (⟨c.α, c.univ, c.inst.insert n e⟩, e)
-end
-open expr
-meta def append_typeclasses : expr → instance_cache → list expr →
-  tactic (instance_cache × list expr)
-| (pi _ binder_info.inst_implicit (app (const n _) (var _)) body) c l :=
-  do (c, p) ← c.get n, return (c, p :: l)
-| _ c l := return (c, l)
+lemma nat_mod_helper (a b q r : ℕ) (h : r + q * b = a) (h₂ : r < b) : a % b = r :=
+by rw [← h, nat.add_mul_mod_self_right, nat.mod_eq_of_lt h₂]
 
-meta def mk_app (c : instance_cache) (n : name) (l : list expr) : tactic (instance_cache × expr) :=
-do d ← get_decl n,
-   (c, l) ← append_typeclasses d.type.binding_body c l,
-   return (c, (expr.const n [c.univ]).mk_app (c.α :: l))
-
-end instance_cache
+lemma int_mod_helper (a b q r : ℤ) (h : r + q * b = a) (h₁ : 0 ≤ r) (h₂ : r < b) : a % b = r :=
+by rw [← h, int.add_mul_mod_self, int.mod_eq_of_lt h₁ h₂]
 
 meta def eval_pow (simp : expr → tactic (expr × expr)) : expr → tactic (expr × expr)
-| `(pow_nat %%e₁ 0) := do
+| `(monoid.pow %%e₁ 0) := do
   p ← mk_app ``pow_zero [e₁],
   a ← infer_type e₁,
   o ← mk_app ``has_one.one [a],
   return (o, p)
-| `(pow_nat %%e₁ 1) := do
+| `(monoid.pow %%e₁ 1) := do
   p ← mk_app ``pow_one [e₁],
   return (e₁, p)
-| `(pow_nat %%e₁ (bit0 %%e₂)) := do
-  e ← mk_app ``pow_nat [e₁, e₂],
+| `(monoid.pow %%e₁ (bit0 %%e₂)) := do
+  e ← mk_app ``monoid.pow [e₁, e₂],
   (e', p) ← simp e,
   p' ← mk_app ``norm_num.pow_bit0_helper [e₁, e', e₂, p],
   e'' ← to_expr ``(%%e' * %%e'),
   return (e'', p')
-| `(pow_nat %%e₁ (bit1 %%e₂)) := do
-  e ← mk_app ``pow_nat [e₁, e₂],
+| `(monoid.pow %%e₁ (bit1 %%e₂)) := do
+  e ← mk_app ``monoid.pow [e₁, e₂],
   (e', p) ← simp e,
   p' ← mk_app ``norm_num.pow_bit1_helper [e₁, e', e₂, p],
   e'' ← to_expr ``(%%e' * %%e' * %%e₁),
   return (e'', p')
-| `(has_pow_nat.pow_nat %%e₁ %%e₂) := mk_app ``pow_nat [e₁, e₂] >>= simp
 | `(nat.pow %%e₁ %%e₂) := do
-  p₁ ← mk_app ``nat.pow_eq_pow_nat [e₁, e₂],
-  e ← mk_app ``pow_nat [e₁, e₂],
+  p₁ ← mk_app ``nat.pow_eq_pow [e₁, e₂],
+  e ← mk_app ``monoid.pow [e₁, e₂],
   (e', p₂) ← simp e,
   p ← mk_eq_trans p₁ p₂,
   return (e', p)
@@ -217,10 +184,103 @@ meta def eval_ineq (simp : expr → tactic (expr × expr)) : expr → tactic (ex
 | `(%%e₁ ≠ %%e₂) := do e ← mk_app ``eq [e₁, e₂], mk_app ``not [e] >>= simp
 | _ := failed
 
+meta def eval_div_ext (simp : expr → tactic (expr × expr)) : expr → tactic (expr × expr)
+| `(has_inv.inv %%e) := do
+  c ← infer_type e >>= mk_instance_cache,
+  (c, p₁) ← c.mk_app ``inv_eq_one_div [e],
+  (c, o) ← c.mk_app ``has_one.one [],
+  (c, e') ← c.mk_app ``has_div.div [o, e],
+  (do (e'', p₂) ← simp e',
+    p ← mk_eq_trans p₁ p₂,
+    return (e'', p)) <|> return (e', p₁)
+| `(%%e₁ / %%e₂) := do
+  α ← infer_type e₁,
+  c ← mk_instance_cache α,
+  match α with
+  | `(nat) := do
+    n₁ ← e₁.to_nat, n₂ ← e₂.to_nat,
+    q ← expr.of_nat α (n₁ / n₂),
+    r ← expr.of_nat α (n₁ % n₂),
+    (c, e₃) ← c.mk_app ``has_mul.mul [q, e₂],
+    (c, e₃) ← c.mk_app ``has_add.add [r, e₃],
+    (e₁', p) ← norm_num e₃,
+    guard (e₁' =ₐ e₁),
+    (c, p') ← prove_lt simp c r e₂,
+    p ← mk_app ``norm_num.nat_div_helper [e₁, e₂, q, r, p, p'],
+    return (q, p)
+  | `(int) := match e₂ with
+    | `(- %%e₂') := do
+      (c, p₁) ← c.mk_app ``int.div_neg [e₁, e₂'],
+      (c, e) ← c.mk_app ``has_div.div [e₁, e₂'],
+      (c, e) ← c.mk_app ``has_neg.neg [e],
+      (e', p₂) ← simp e,
+      p ← mk_eq_trans p₁ p₂,
+      return (e', p)
+    | _ := do
+      n₁ ← e₁.to_int,
+      n₂ ← e₂.to_int,
+      q ← expr.of_rat α $ rat.of_int (n₁ / n₂),
+      r ← expr.of_rat α $ rat.of_int (n₁ % n₂),
+      (c, e₃) ← c.mk_app ``has_mul.mul [q, e₂],
+      (c, e₃) ← c.mk_app ``has_add.add [r, e₃],
+      (e₁', p) ← norm_num e₃,
+      guard (e₁' =ₐ e₁),
+      (c, r0) ← c.mk_app ``has_zero.zero [],
+      (c, r0) ← c.mk_app ``has_le.le [r0, r],
+      (_, p₁) ← simp r0,
+      p₁ ← mk_app ``of_eq_true [p₁],
+      (c, p₂) ← prove_lt simp c r e₂,
+      p ← mk_app ``norm_num.int_div_helper [e₁, e₂, q, r, p, p₁, p₂],
+      return (q, p)
+    end
+  | _ := failed
+  end
+| `(%%e₁ % %%e₂) := do
+  α ← infer_type e₁,
+  c ← mk_instance_cache α,
+  match α with
+  | `(nat) := do
+    n₁ ← e₁.to_nat, n₂ ← e₂.to_nat,
+    q ← expr.of_nat α (n₁ / n₂),
+    r ← expr.of_nat α (n₁ % n₂),
+    (c, e₃) ← c.mk_app ``has_mul.mul [q, e₂],
+    (c, e₃) ← c.mk_app ``has_add.add [r, e₃],
+    (e₁', p) ← norm_num e₃,
+    guard (e₁' =ₐ e₁),
+    (c, p') ← prove_lt simp c r e₂,
+    p ← mk_app ``norm_num.nat_mod_helper [e₁, e₂, q, r, p, p'],
+    return (r, p)
+  | `(int) := match e₂ with
+    | `(- %%e₂') := do
+      (c, p₁) ← c.mk_app ``int.mod_neg [e₁, e₂'],
+      (c, e) ← c.mk_app ``has_mod.mod [e₁, e₂'],
+      (e', p₂) ← simp e,
+      p ← mk_eq_trans p₁ p₂,
+      return (e', p)
+    | _ := do
+      n₁ ← e₁.to_int,
+      n₂ ← e₂.to_int,
+      q ← expr.of_rat α $ rat.of_int (n₁ / n₂),
+      r ← expr.of_rat α $ rat.of_int (n₁ % n₂),
+      (c, e₃) ← c.mk_app ``has_mul.mul [q, e₂],
+      (c, e₃) ← c.mk_app ``has_add.add [r, e₃],
+      (e₁', p) ← norm_num e₃,
+      guard (e₁' =ₐ e₁),
+      (c, r0) ← c.mk_app ``has_zero.zero [],
+      (c, r0) ← c.mk_app ``has_le.le [r0, r],
+      (_, p₁) ← simp r0,
+      p₁ ← mk_app ``of_eq_true [p₁],
+      (c, p₂) ← prove_lt simp c r e₂,
+      p ← mk_app ``norm_num.int_mod_helper [e₁, e₂, q, r, p, p₁, p₂],
+      return (r, p)
+    end
+  | _ := failed
+  end
+| _ := failed
+
 meta def derive1 (simp : expr → tactic (expr × expr)) (e : expr) :
   tactic (expr × expr) :=
-norm_num e <|> eval_pow simp e <|> eval_ineq simp e
-
+norm_num e <|> eval_div_ext simp e <|> eval_pow simp e <|> eval_ineq simp e
 
 meta def derive : expr → tactic (expr × expr) | e :=
 do (_, e', pr) ←
@@ -237,14 +297,20 @@ end norm_num
 namespace tactic.interactive
 open norm_num interactive interactive.types
 
-meta def norm_num1 : tactic unit :=
-do t ← target,
-   (new_target, pr) ← derive t,
-    replace_target new_target pr,
-    try (tactic.triv)
+/-- Basic version of `norm_num` that does not call `simp`. -/
+meta def norm_num1 (loc : parse location) : tactic unit :=
+do ns ← loc.get_locals,
+   tt ← tactic.replace_at derive ns loc.include_goal
+      | fail "norm_num failed to simplify",
+   when loc.include_goal $ try tactic.triv,
+   when (¬ ns.empty) $ try tactic.contradiction
 
-meta def norm_num : tactic unit :=
-repeat (norm_num1 <|> `[simp])
+/-- Normalize numerical expressions. Supports the operations
+  `+` `-` `*` `/` `^` `<` `≤` over ordered fields (or other
+  appropriate classes), as well as `-` `/` `%` over `ℤ` and `ℕ`. -/
+meta def norm_num (loc : parse location) : tactic unit :=
+let t := orelse' (norm_num1 loc) $ simp_core {} failed ff [] [] loc in
+t >> repeat t
 
 meta def apply_normed (x : parse texpr) : tactic unit :=
 do x₁ ← to_expr x,

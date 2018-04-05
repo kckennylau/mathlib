@@ -3,7 +3,7 @@ Copyright (c) 2017 Mario Carneiro. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Mario Carneiro
 -/
-import data.dlist
+import data.dlist tactic.basic
 
 open lean lean.parser
 
@@ -12,8 +12,6 @@ namespace tactic
 inductive rcases_patt : Type
 | one : name → rcases_patt
 | many : list (list rcases_patt) → rcases_patt
-
-#print instances has_reflect
 
 instance rcases_patt.inhabited : inhabited rcases_patt :=
 ⟨rcases_patt.one `_⟩
@@ -25,7 +23,11 @@ def rcases_patt.name : rcases_patt → name
 meta instance rcases_patt.has_reflect : has_reflect rcases_patt
 | (rcases_patt.one n) := `(_)
 | (rcases_patt.many l) := `(λ l, rcases_patt.many l).subst $
-  by have := rcases_patt.has_reflect; exact list.reflect l
+  begin
+    have := rcases_patt.has_reflect,
+    tactic.reset_instance_cache, -- this combo will be `haveI` later
+    exact list.reflect l
+  end
 
 meta def rcases.process_constructor :
   nat → list rcases_patt → list name × list rcases_patt
@@ -59,6 +61,11 @@ private def align {α β} (p : α → β → Prop) [∀ a b, decidable (p a b)] 
   if p a b then (a, b) :: align as bs else align as (b::bs)
 | _ _ := []
 
+private meta def get_local_and_type (e : expr) : tactic (expr × expr) :=
+(do t ← infer_type e, pure (t, e)) <|> (do
+    e ← get_local e.local_pp_name,
+    t ← infer_type e, pure (t, e))
+
 meta def rcases.continue
   (rcases_core : list (list rcases_patt) → expr → tactic (list expr))
   (n : nat) : list (rcases_patt × expr) → tactic (list expr)
@@ -66,11 +73,16 @@ meta def rcases.continue
 | ((rcases_patt.many ids, e) :: l) := do
   gs ← rcases_core ids e,
   list.join <$> gs.mmap (λ g, set_goals [g] >> rcases.continue l)
+| ((rcases_patt.one `rfl, e) :: l) := do
+  (t, e) ← get_local_and_type e,
+  subst e,
+  rcases.continue l
 | (_ :: l) := rcases.continue l
 
 meta def rcases_core (n : nat) : list (list rcases_patt) → expr → tactic (list expr)
 | ids e := do
-  t   ← infer_type e >>= whnf,
+  (t, e) ← get_local_and_type e,
+  t ← whnf t,
   env ← get_env,
   let I := t.get_app_fn.const_name,
   when (¬env.is_inductive I) $

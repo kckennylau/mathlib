@@ -7,7 +7,7 @@ Measurable spaces -- σ-algberas
 -/
 import data.set data.set.disjointed data.finset order.galois_connection data.set.countable
 open classical set lattice
-local attribute [instance] decidable_inhabited prop_decidable
+local attribute [instance] prop_decidable
 
 universes u v w x
 variables {α : Type u} {β : Type v} {γ : Type w} {ι : Sort x}
@@ -25,6 +25,7 @@ section
 variable [m : measurable_space α]
 include m
 
+/-- `is_measurable s` means that `s` is measurable (in the ambient measure space on `α`) -/
 def is_measurable : set α → Prop := m.is_measurable
 
 lemma is_measurable_empty : is_measurable (∅ : set α) := m.is_measurable_empty
@@ -52,7 +53,7 @@ begin
   rw [this],
   apply is_measurable_Union_nat _,
   intro i,
-  by_cases f i ∈ s with h'; simp [h', h, is_measurable_empty]
+  by_cases h' : f i ∈ s; simp [h', h, is_measurable_empty]
 end
 
 lemma is_measurable_bUnion {f : β → set α} {s : set β} (hs : countable s)
@@ -123,23 +124,23 @@ namespace measurable_space
 section complete_lattice
 
 instance : partial_order (measurable_space α) :=
-{ partial_order .
-  le          := λm₁ m₂, m₁.is_measurable ≤ m₂.is_measurable,
+{ le          := λm₁ m₂, m₁.is_measurable ≤ m₂.is_measurable,
   le_refl     := assume a b, le_refl _,
   le_trans    := assume a b c, le_trans,
   le_antisymm := assume a b h₁ h₂, measurable_space_eq $ assume s, ⟨h₁ s, h₂ s⟩ }
 
 section generated_from
 
+/-- The smallest σ-algebra containing a collection `s` of basic sets -/
 inductive generate_measurable (s : set (set α)) : set α → Prop
 | basic : ∀u∈s, generate_measurable u
 | empty : generate_measurable ∅
 | compl : ∀s, generate_measurable s → generate_measurable (-s)
 | union : ∀f:ℕ → set α, (∀n, generate_measurable (f n)) → generate_measurable (⋃i, f i)
 
+/-- Construct the smallest measure space containing a collection of basic sets -/
 def generate_from (s : set (set α)) : measurable_space α :=
-{measurable_space .
-  is_measurable       := generate_measurable s,
+{ is_measurable       := generate_measurable s,
   is_measurable_empty := generate_measurable.empty s,
   is_measurable_compl := generate_measurable.compl,
   is_measurable_Union := generate_measurable.union }
@@ -158,15 +159,13 @@ assume t (ht : generate_measurable s t), ht.rec_on h
 end generated_from
 
 instance : has_top (measurable_space α) :=
-⟨{measurable_space .
-  is_measurable       := λs, true,
+⟨{is_measurable       := λs, true,
   is_measurable_empty := trivial,
   is_measurable_compl := assume s hs, trivial,
   is_measurable_Union := assume f hf, trivial }⟩
 
 instance : has_bot (measurable_space α) :=
-⟨{measurable_space .
-  is_measurable       := λs, s = ∅ ∨ s = univ,
+⟨{is_measurable       := λs, s = ∅ ∨ s = univ,
   is_measurable_empty := or.inl rfl,
   is_measurable_compl := by simp [or_imp_distrib] {contextual := tt},
   is_measurable_Union := assume f hf, by_cases
@@ -178,7 +177,7 @@ instance : has_bot (measurable_space α) :=
         (hf i).elim (by simp {contextual := tt}) (assume hi, false.elim $ h ⟨i, hi⟩)) }⟩
 
 instance : has_inf (measurable_space α) :=
-⟨λm₁ m₂, {measurable_space .
+⟨λm₁ m₂, {
   is_measurable       := λs:set α, m₁.is_measurable s ∧ m₂.is_measurable s,
   is_measurable_empty := ⟨m₁.is_measurable_empty, m₂.is_measurable_empty⟩,
   is_measurable_compl := assume s ⟨h₁, h₂⟩, ⟨m₁.is_measurable_compl s h₁, m₂.is_measurable_compl s h₂⟩,
@@ -186,7 +185,7 @@ instance : has_inf (measurable_space α) :=
     ⟨m₁.is_measurable_Union f (λi, (hf i).left), m₂.is_measurable_Union f (λi, (hf i).right)⟩ }⟩
 
 instance : has_Inf (measurable_space α) :=
-⟨λx, {measurable_space .
+⟨λx, {
   is_measurable       := λs:set α, ∀m:measurable_space α, m ∈ x → m.is_measurable s,
   is_measurable_empty := assume m hm, m.is_measurable_empty,
   is_measurable_compl := assume s hs m hm, m.is_measurable_compl s $ hs _ hm,
@@ -201,8 +200,7 @@ protected lemma Inf_le {s : set (measurable_space α)} {m : measurable_space α}
 assume s hs, hs m h
 
 instance : complete_lattice (measurable_space α) :=
-{ measurable_space.partial_order with
-  sup           := λa b, Inf {x | a ≤ x ∧ b ≤ x},
+{ sup           := λa b, Inf {x | a ≤ x ∧ b ≤ x},
   le_sup_left   := assume a b, measurable_space.le_Inf $ assume x, assume h : a ≤ x ∧ b ≤ x, h.left,
   le_sup_right  := assume a b, measurable_space.le_Inf $ assume x, assume h : a ≤ x ∧ b ≤ x, h.right,
   sup_le        := assume a b c h₁ h₂,
@@ -222,7 +220,8 @@ instance : complete_lattice (measurable_space α) :=
   Sup_le        := assume s f h, measurable_space.Inf_le $ assume t ht, h _ ht,
   Inf           := Inf,
   le_Inf        := assume s a, measurable_space.le_Inf,
-  Inf_le        := assume s a, measurable_space.Inf_le }
+  Inf_le        := assume s a, measurable_space.Inf_le,
+  ..measurable_space.partial_order }
 
 instance : inhabited (measurable_space α) := ⟨⊤⟩
 
@@ -231,9 +230,10 @@ end complete_lattice
 section functors
 variables {m m₁ m₂ : measurable_space α} {m' : measurable_space β} {f : α → β} {g : β → α}
 
+/-- The forward image of a measure space under a function. `map f m` contains the sets `s : set β`
+  whose preimage under `f` is measurable. -/
 protected def map (f : α → β) (m : measurable_space α) : measurable_space β :=
-{measurable_space .
-  is_measurable       := λs, m.is_measurable $ f ⁻¹' s,
+{ is_measurable       := λs, m.is_measurable $ f ⁻¹' s,
   is_measurable_empty := m.is_measurable_empty,
   is_measurable_compl := assume s hs, m.is_measurable_compl _ hs,
   is_measurable_Union := assume f hf, by rw [preimage_Union]; exact m.is_measurable_Union _ hf }
@@ -244,9 +244,10 @@ measurable_space_eq $ assume s, iff.refl _
 @[simp] lemma map_comp {f : α → β} {g : β → γ} : (m.map f).map g = m.map (g ∘ f) :=
 measurable_space_eq $ assume s, iff.refl _
 
+/-- The reverse image of a measure space under a function. `comap f m` contains the sets `s : set α`
+  such that `s` is the `f`-preimage of a measurable set in `β`. -/
 protected def comap (f : α → β) (m : measurable_space β) : measurable_space α :=
-{measurable_space .
-  is_measurable       := λs, ∃s', m.is_measurable s' ∧ f ⁻¹' s' = s,
+{ is_measurable       := λs, ∃s', m.is_measurable s' ∧ f ⁻¹' s' = s,
   is_measurable_empty := ⟨∅, m.is_measurable_empty, rfl⟩,
   is_measurable_compl := assume s ⟨s', h₁, h₂⟩, ⟨-s', m.is_measurable_compl _ h₁, h₂ ▸ rfl⟩,
   is_measurable_Union := assume s hs,
@@ -295,12 +296,12 @@ le_antisymm
   begin
     rw [←eq], clear eq,
     induction hv,
-    case generate_measurable.basic u hu { exact (generate_measurable.basic _ $ ⟨u, hu, rfl⟩) },
+    case generate_measurable.basic : u hu { exact (generate_measurable.basic _ $ ⟨u, hu, rfl⟩) },
     case generate_measurable.empty { simp [measurable_space.is_measurable_empty] },
-    case generate_measurable.compl u hu ih {
+    case generate_measurable.compl : u hu ih {
       rw [preimage_compl],
       exact measurable_space.is_measurable_compl _ _ ih },
-    case generate_measurable.union u hu ih {
+    case generate_measurable.union : u hu ih {
       rw [preimage_Union],
       exact measurable_space.is_measurable_Union _ _ ih }
   end)
@@ -326,6 +327,8 @@ end measurable_space
 section measurable_functions
 open measurable_space
 
+/-- A function `f` between measurable spaces is measurable if the preimage of every
+  measurable set is measurable. -/
 def measurable [m₁ : measurable_space α] [m₂ : measurable_space β] (f : α → β) : Prop :=
 m₂ ≤ m₁.map f
 
@@ -338,6 +341,18 @@ le_trans hg $ map_mono hf
 lemma measurable_generate_from [measurable_space α] {s : set (set β)} {f : α → β}
   (h : ∀t∈s, is_measurable (f ⁻¹' t)) : @measurable _ _ _ (generate_from s) f :=
 generate_from_le h
+
+lemma measurable_if [measurable_space α] [measurable_space β]
+  {p : α → Prop} [decidable_pred p] {f g : α → β}
+  (hp : is_measurable {a | p a}) (hf : measurable f) (hg : measurable g) :
+  measurable (λa, if p a then f a else g a) :=
+assume s hs,
+have {a | (if p a then f a else g a) ∈ s} = ({a | p a} ∩ f ⁻¹' s) ∪ (- {a | p a} ∩ g ⁻¹' s),
+  from ext $ assume a, by by_cases p a; simp [h],
+show is_measurable {a | (if p a then f a else g a) ∈ s},
+  by rw [this]; exact is_measurable_union
+    (is_measurable_inter hp $ hf s hs)
+    (is_measurable_inter (is_measurable_compl hp) $ hg s hs)
 
 end measurable_functions
 
@@ -423,15 +438,13 @@ lemma dynkin_system_eq :
   by subst this
 
 instance : partial_order (dynkin_system α) :=
-{ partial_order .
-  le          := λm₁ m₂, m₁.has ≤ m₂.has,
+{ le          := λm₁ m₂, m₁.has ≤ m₂.has,
   le_refl     := assume a b, le_refl _,
   le_trans    := assume a b c, le_trans,
   le_antisymm := assume a b h₁ h₂, dynkin_system_eq $ assume s, ⟨h₁ s, h₂ s⟩ }
 
 def of_measurable_space (m : measurable_space α) : dynkin_system α :=
-{ dynkin_system .
-  has       := m.is_measurable,
+{ has       := m.is_measurable,
   has_empty := m.is_measurable_empty,
   has_compl := m.is_measurable_compl,
   has_Union := assume f _ hf, m.is_measurable_Union f hf }
@@ -440,6 +453,7 @@ lemma of_measurable_space_le_of_measurable_space_iff {m₁ m₂ : measurable_spa
   of_measurable_space m₁ ≤ of_measurable_space m₂ ↔ m₁ ≤ m₂ :=
 iff.refl _
 
+/-- The least Dynkin system containing a collection of basic sets. -/
 inductive generate_has (s : set (set α)) : set α → Prop
 | basic : ∀t∈s, generate_has t
 | empty : generate_has ∅
@@ -448,8 +462,7 @@ inductive generate_has (s : set (set α)) : set α → Prop
     (∀i, generate_has (f i)) → generate_has (⋃i, f i)
 
 def generate (s : set (set α)) : dynkin_system α :=
-{ dynkin_system .
-  has := generate_has s,
+{ has := generate_has s,
   has_empty := generate_has.empty s,
   has_compl := assume a, generate_has.compl,
   has_Union := assume f, generate_has.Union }
@@ -469,7 +482,7 @@ have hf2 : ∀n:ℕ, f n.succ.succ = ∅, from assume n, rfl,
 have (∀i j, i ≠ j → f i ∩ f j = ∅),
   from assume i, i.two_step_induction
     (assume j, j.two_step_induction (by simp) (by simp [hf0, hf1, h]) (by simp [hf2]))
-    (assume j, j.two_step_induction (by simp [hf0, hf1, h]) (by simp) (by simp [hf2]))
+    (assume j, j.two_step_induction (by simp [hf0, hf1, h, inter_comm]) (by simp) (by simp [hf2]))
     (by simp [hf2]),
 have eq : s₁ ∪ s₂ = (⋃i, f i),
   from subset.antisymm (union_subset (le_supr f 0) (le_supr f 1)) $
@@ -488,7 +501,7 @@ by rw [eq]; exact d.has_Union this (assume i,
 
 lemma has_sdiff {s₁ s₂ : set δ} (h₁ : d.has s₁) (h₂ : d.has s₂) (h : s₂ ⊆ s₁) : d.has (s₁ - s₂) :=
 have d.has (- (s₂ ∪ -s₁)),
-  from d.has_compl $ d.has_union h₂ (d.has_compl h₁) $ eq_empty_of_forall_not_mem $
+  from d.has_compl $ d.has_union h₂ (d.has_compl h₁) $ eq_empty_iff_forall_not_mem.2 $
     assume x ⟨h₁, h₂⟩, h₂ $ h h₁,
 have s₁ - s₂ = - (s₂ ∪ -s₁),
   by rw [compl_union, compl_compl, inter_comm]; refl,
@@ -513,8 +526,7 @@ lemma of_measurable_space_to_measurable_space
 dynkin_system_eq $ assume s, iff.refl _
 
 def restrict_on {s : set δ} (h : d.has s) : dynkin_system δ :=
-{ dynkin_system .
-  has       := λt, d.has (t ∩ s),
+{ has       := λt, d.has (t ∩ s),
   has_empty := by simp [d.has_empty],
   has_compl := assume t hts,
     have -t ∩ s = (- (t ∩ s)) \ -s,

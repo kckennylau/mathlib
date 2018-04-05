@@ -14,20 +14,29 @@ variables {α : Type u} {β : Type v} {ι : Sort w} {ι₂ : Sort w₂}
 
 namespace lattice
 
+/-- class for the `Sup` operator -/
 class has_Sup (α : Type u) := (Sup : set α → α)
+/-- class for the `Inf` operator -/
 class has_Inf (α : Type u) := (Inf : set α → α)
+/-- Supremum of a set -/
 def Sup [has_Sup α] : set α → α := has_Sup.Sup
+/-- Infimum of a set -/
 def Inf [has_Inf α] : set α → α := has_Inf.Inf
 
+/-- A complete lattice is a bounded lattice which
+  has suprema and infima for every subset. -/
 class complete_lattice (α : Type u) extends bounded_lattice α, has_Sup α, has_Inf α :=
 (le_Sup : ∀s, ∀a∈s, a ≤ Sup s)
 (Sup_le : ∀s a, (∀b∈s, b ≤ a) → Sup s ≤ a)
 (Inf_le : ∀s, ∀a∈s, Inf s ≤ a)
 (le_Inf : ∀s a, (∀b∈s, a ≤ b) → a ≤ Inf s)
 
+/-- A complete linear order is a linear order whose lattice structure is complete. -/
 class complete_linear_order (α : Type u) extends complete_lattice α, linear_order α
 
+/-- Indexed supremum -/
 def supr [complete_lattice α] (s : ι → α) : α := Sup {a : α | ∃i : ι, a = s i}
+/-- Indexed infimum -/
 def infi [complete_lattice α] (s : ι → α) : α := Inf {a : α | ∃i : ι, a = s i}
 
 notation `⨆` binders `, ` r:(scoped f, supr f) := r
@@ -37,11 +46,11 @@ section
 open set
 variables [complete_lattice α] {s t : set α} {a b : α}
 
-@[ematch] theorem le_Sup : a ∈ s → a ≤ Sup s         := complete_lattice.le_Sup s a
+@[ematch] theorem le_Sup : a ∈ s → a ≤ Sup s := complete_lattice.le_Sup s a
 
 theorem Sup_le : (∀b∈s, b ≤ a) → Sup s ≤ a := complete_lattice.Sup_le s a
 
-@[ematch] theorem Inf_le : a ∈ s → Inf s ≤ a         := complete_lattice.Inf_le s a
+@[ematch] theorem Inf_le : a ∈ s → Inf s ≤ a := complete_lattice.Inf_le s a
 
 theorem le_Inf : (∀b∈s, a ≤ b) → a ≤ Inf s := complete_lattice.le_Inf s a
 
@@ -337,7 +346,7 @@ le_antisymm
 
 attribute [ematch] le_refl
 
-theorem infi_inf_eq {f g : β → α} : (⨅ x, f x ⊓ g x) = (⨅ x, f x) ⊓ (⨅ x, g x) :=
+theorem infi_inf_eq {f g : ι → α} : (⨅ x, f x ⊓ g x) = (⨅ x, f x) ⊓ (⨅ x, g x) :=
 le_antisymm
   (le_inf
     (le_infi $ assume i, infi_le_of_le i inf_le_left)
@@ -450,36 +459,36 @@ le_antisymm
 lemma Sup_range {f : ι → α} : Sup (range f) = supr f :=
 le_antisymm
   (Sup_le $ forall_range_iff.mpr $ assume i, le_supr _ _)
-  (supr_le $ assume i, le_Sup mem_range)
+  (supr_le $ assume i, le_Sup (mem_range_self _))
 
 lemma Inf_range {f : ι → α} : Inf (range f) = infi f :=
 le_antisymm
-  (le_infi $ assume i, Inf_le mem_range)
+  (le_infi $ assume i, Inf_le (mem_range_self _))
   (le_Inf $ forall_range_iff.mpr $ assume i, infi_le _ _)
 
 lemma supr_range {g : β → α} {f : ι → β} : (⨆b∈range f, g b) = (⨆i, g (f i)) :=
 le_antisymm
   (supr_le $ assume b, supr_le $ assume ⟨i, (h : f i = b)⟩, h ▸ le_supr _ i)
-  (supr_le $ assume i, le_supr_of_le (f i) $ le_supr (λp, g (f i)) mem_range)
+  (supr_le $ assume i, le_supr_of_le (f i) $ le_supr (λp, g (f i)) (mem_range_self _))
 
 lemma infi_range {g : β → α} {f : ι → β} : (⨅b∈range f, g b) = (⨅i, g (f i)) :=
 le_antisymm
-  (le_infi $ assume i, infi_le_of_le (f i) $ infi_le (λp, g (f i)) mem_range)
+  (le_infi $ assume i, infi_le_of_le (f i) $ infi_le (λp, g (f i)) (mem_range_self _))
   (le_infi $ assume b, le_infi $ assume ⟨i, (h : f i = b)⟩, h ▸ infi_le _ i)
 
 theorem Inf_image {s : set β} {f : β → α} : Inf (f '' s) = (⨅ a ∈ s, f a) :=
 calc Inf (set.image f s) = (⨅a, ⨅h : ∃b, b ∈ s ∧ f b = a, a) : Inf_eq_infi
-                     ... = (⨅a, ⨅b, ⨅h : f b = a ∧ b ∈ s, a) : by simp
+                     ... = (⨅a, ⨅b, ⨅h : f b = a ∧ b ∈ s, a) : by simp [and_comm]
                      ... = (⨅a, ⨅b, ⨅h : a = f b, ⨅h : b ∈ s, a) : by simp [infi_and, eq_comm]
                      ... = (⨅b, ⨅a, ⨅h : a = f b, ⨅h : b ∈ s, a) : by rw [infi_comm]
-                     ... = (⨅a∈s, f a) : congr_arg infi $ funext $ assume x, by rw [infi_infi_eq_left]
+                     ... = (⨅a∈s, f a) : congr_arg infi $ by funext x; rw [infi_infi_eq_left]
 
 theorem Sup_image {s : set β} {f : β → α} : Sup (f '' s) = (⨆ a ∈ s, f a) :=
 calc Sup (set.image f s) = (⨆a, ⨆h : ∃b, b ∈ s ∧ f b = a, a) : Sup_eq_supr
-                     ... = (⨆a, ⨆b, ⨆h : f b = a ∧ b ∈ s, a) : by simp
+                     ... = (⨆a, ⨆b, ⨆h : f b = a ∧ b ∈ s, a) : by simp [and_comm]
                      ... = (⨆a, ⨆b, ⨆h : a = f b, ⨆h : b ∈ s, a) : by simp [supr_and, eq_comm]
                      ... = (⨆b, ⨆a, ⨆h : a = f b, ⨆h : b ∈ s, a) : by rw [supr_comm]
-                     ... = (⨆a∈s, f a) : congr_arg supr $ funext $ assume x, by rw [supr_supr_eq_left]
+                     ... = (⨆a∈s, f a) : congr_arg supr $ by funext x; rw [supr_supr_eq_left]
 
 /- supr and infi under set constructions -/
 
@@ -603,23 +612,23 @@ end
 /- Instances -/
 
 instance complete_lattice_Prop : complete_lattice Prop :=
-{ lattice.bounded_lattice_Prop with
-  Sup    := λs, ∃a∈s, a,
+{ Sup    := λs, ∃a∈s, a,
   le_Sup := assume s a h p, ⟨a, h, p⟩,
   Sup_le := assume s a h ⟨b, h', p⟩, h b h' p,
   Inf    := λs, ∀a:Prop, a∈s → a,
   Inf_le := assume s a h p, p a h,
-  le_Inf := assume s a h p b hb, h b hb p }
+  le_Inf := assume s a h p b hb, h b hb p,
+  ..lattice.bounded_lattice_Prop }
 
 instance complete_lattice_fun {α : Type u} {β : Type v} [complete_lattice β] :
   complete_lattice (α → β) :=
-{ lattice.bounded_lattice_fun with
-  Sup    := λs a, Sup (set.image (λf : α → β, f a) s),
+{ Sup    := λs a, Sup (set.image (λf : α → β, f a) s),
   le_Sup := assume s f h a, le_Sup ⟨f, h, rfl⟩,
   Sup_le := assume s f h a, Sup_le $ assume b ⟨f', h', b_eq⟩, b_eq ▸ h _ h' a,
   Inf    := λs a, Inf (set.image (λf : α → β, f a) s),
   Inf_le := assume s f h a, Inf_le ⟨f, h, rfl⟩,
-  le_Inf := assume s f h a, le_Inf $ assume b ⟨f', h', b_eq⟩, b_eq ▸ h _ h' a }
+  le_Inf := assume s f h a, le_Inf $ assume b ⟨f', h', b_eq⟩, b_eq ▸ h _ h' a,
+  ..lattice.bounded_lattice_fun }
 
 section complete_lattice
 variables [preorder α] [complete_lattice β]
@@ -638,6 +647,8 @@ section ord_continuous
 open lattice
 variables [complete_lattice α] [complete_lattice β]
 
+/-- A function `f` between complete lattices is order-continuous
+  if it preserves all suprema. -/
 def ord_continuous (f : α → β) := ∀s : set α, f (Sup s) = (⨆i∈s, f i)
 
 lemma ord_continuous_sup {f : α → β} {a₁ a₂ : α} (hf : ord_continuous f) : f (a₁ ⊔ a₂) = f a₁ ⊔ f a₂ :=

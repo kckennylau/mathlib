@@ -3,10 +3,14 @@ Copyright (c) 2017 Mario Carneiro. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Mario Carneiro
 -/
-import order algebra.order algebra.ordered_group algebra.ring
+import order.basic algebra.order algebra.ordered_group algebra.ring
 
 universe u
 variable {α : Type u}
+
+-- TODO: this is necessary additionally to mul_nonneg otherwise the simplifier can not match
+lemma zero_le_mul [ordered_semiring α] {a b : α} : 0 ≤ a → 0 ≤ b → 0 ≤ a * b :=
+mul_nonneg
 
 section linear_ordered_semiring
 variable [linear_ordered_semiring α]
@@ -59,10 +63,10 @@ lt_add_of_le_of_pos (add_nonneg h h) zero_lt_one
 lemma bit1_pos' {a : α} (h : 0 < a) : 0 < bit1 a :=
 bit1_pos (le_of_lt h)
 
-/- remove when we have a linear arithmetic tactic -/
-lemma one_lt_two : 1 < (2 : α) :=
-calc (1:α) < 1 + 1 : lt_add_of_le_of_pos (le_refl 1) zero_lt_one
-  ... = _ : by simp [bit0]
+lemma lt_add_one (a : α) : a < a + 1 :=
+lt_add_of_le_of_pos (le_refl _) zero_lt_one
+
+lemma one_lt_two : 1 < (2 : α) := lt_add_one _
 
 end linear_ordered_semiring
 
@@ -75,8 +79,8 @@ instance linear_ordered_semiring.to_no_bot_order {α : Type*} [linear_ordered_ri
 ⟨assume a, ⟨a - 1, sub_lt_iff.mpr $ lt_add_of_pos_right _ zero_lt_one⟩⟩
 
 instance to_domain [s : linear_ordered_ring α] : domain α :=
-{ s with
-  eq_zero_or_eq_zero_of_mul_eq_zero := @linear_ordered_ring.eq_zero_or_eq_zero_of_mul_eq_zero α s }
+{ eq_zero_or_eq_zero_of_mul_eq_zero := @linear_ordered_ring.eq_zero_or_eq_zero_of_mul_eq_zero α s,
+  ..s }
 
 section linear_ordered_ring
 variable [linear_ordered_ring α]
@@ -95,14 +99,21 @@ le_iff_le_iff_lt_iff_lt.1 (mul_le_mul_left_of_neg h)
 @[simp] lemma mul_lt_mul_right_of_neg {a b c : α} (h : c < 0) : a * c < b * c ↔ b < a :=
 le_iff_le_iff_lt_iff_lt.1 (mul_le_mul_right_of_neg h)
 
+lemma sub_one_lt (a : α) : a - 1 < a :=
+sub_lt_iff.2 (lt_add_one a)
+
 end linear_ordered_ring
 
 set_option old_structure_cmd true
+/-- Extend `nonneg_comm_group` to support ordered rings
+  specified by their nonnegative elements -/
 class nonneg_ring (α : Type*)
   extends ring α, zero_ne_one_class α, nonneg_comm_group α :=
 (mul_nonneg : ∀ {a b}, nonneg a → nonneg b → nonneg (a * b))
 (mul_pos : ∀ {a b}, pos a → pos b → pos (a * b))
 
+/-- Extend `nonneg_comm_group` to support linearly ordered rings
+  specified by their nonnegative elements -/
 class linear_nonneg_ring (α : Type*) extends domain α, nonneg_comm_group α :=
 (mul_nonneg : ∀ {a b}, nonneg a → nonneg b → nonneg (a * b))
 (nonneg_total : ∀ a, nonneg a ∨ nonneg (-a))
@@ -112,8 +123,7 @@ open nonneg_comm_group
 variable [s : nonneg_ring α]
 
 instance to_ordered_ring : ordered_ring α :=
-{ s with
-  le := (≤),
+{ le := (≤),
   lt := (<),
   lt_iff_le_not_le := @lt_iff_le_not_le _ _,
   le_refl := @le_refl _ _,
@@ -122,13 +132,13 @@ instance to_ordered_ring : ordered_ring α :=
   add_lt_add_left := @add_lt_add_left _ _,
   add_le_add_left := @add_le_add_left _ _,
   mul_nonneg := λ a b, by simp [nonneg_def.symm]; exact mul_nonneg,
-  mul_pos := λ a b, by simp [pos_def.symm]; exact mul_pos }
+  mul_pos := λ a b, by simp [pos_def.symm]; exact mul_pos,
+  ..s }
 
 def nonneg_ring.to_linear_nonneg_ring
   (nonneg_total : ∀ a : α, nonneg a ∨ nonneg (-a))
   : linear_nonneg_ring α :=
-{ s with
-  nonneg_total := nonneg_total,
+{ nonneg_total := nonneg_total,
   eq_zero_or_eq_zero_of_mul_eq_zero :=
     suffices ∀ {a} b : α, nonneg a → a * b = 0 → a = 0 ∨ b = 0,
     from λ a b, (nonneg_total a).elim (this b)
@@ -142,7 +152,8 @@ def nonneg_ring.to_linear_nonneg_ring
         (λ nnb : nonneg (-b), or.inr (nonneg_antisymm nb nnb))
         (λ pb, absurd z $ ne_of_gt $ pos_def.1 $ mul_pos
           ((pos_iff _ _).2 ⟨na, pa⟩)
-          ((pos_iff _ _).2 ⟨nb, pb⟩))) }
+          ((pos_iff _ _).2 ⟨nb, pb⟩))),
+  ..s }
 
 end nonneg_ring
 
@@ -151,8 +162,7 @@ open nonneg_comm_group
 variable [s : linear_nonneg_ring α]
 
 instance to_nonneg_ring : nonneg_ring α :=
-{ s with
-  mul_pos := λ a b pa pb,
+{ mul_pos := λ a b pa pb,
   let ⟨a1, a2⟩ := (pos_iff α a).1 pa,
       ⟨b1, b2⟩ := (pos_iff α b).1 pb in
   have ab : nonneg (a * b), from mul_nonneg a1 b1,
@@ -160,21 +170,21 @@ instance to_nonneg_ring : nonneg_ring α :=
     have a * b = 0, from nonneg_antisymm ab hn,
     (eq_zero_or_eq_zero_of_mul_eq_zero _ _ this).elim
       (ne_of_gt (pos_def.1 pa))
-      (ne_of_gt (pos_def.1 pb))⟩ }
+      (ne_of_gt (pos_def.1 pb))⟩,
+  ..s }
 
 instance to_linear_order : linear_order α :=
-{ s with
-  le := (≤),
+{ le := (≤),
   lt := (<),
   lt_iff_le_not_le := @lt_iff_le_not_le _ _,
   le_refl := @le_refl _ _,
   le_trans := @le_trans _ _,
   le_antisymm := @le_antisymm _ _,
-  le_total := nonneg_total_iff.1 nonneg_total }
+  le_total := nonneg_total_iff.1 nonneg_total,
+  ..s }
 
 instance to_linear_ordered_ring : linear_ordered_ring α :=
-{ s with
-  le := (≤),
+{ le := (≤),
   lt := (<),
   lt_iff_le_not_le := @lt_iff_le_not_le _ _,
   le_refl := @le_refl _ _,
@@ -189,16 +199,16 @@ instance to_linear_ordered_ring : linear_ordered_ring α :=
     rw [zero_sub] at h,
     have := mul_nonneg h h, simp at this,
     exact zero_ne_one _ (nonneg_antisymm this h).symm
-  end }
+  end, ..s }
 
 instance to_decidable_linear_ordered_comm_ring
   [decidable_pred (@nonneg α _)]
   [comm : @is_commutative α (*)]
   : decidable_linear_ordered_comm_ring α :=
-{ @linear_nonneg_ring.to_linear_ordered_ring _ s with
-  decidable_le := by apply_instance,
+{ decidable_le := by apply_instance,
   decidable_eq := by apply_instance,
   decidable_lt := by apply_instance,
-  mul_comm := is_commutative.comm (*) }
+  mul_comm := is_commutative.comm (*),
+  ..@linear_nonneg_ring.to_linear_ordered_ring _ s }
 
 end linear_nonneg_ring

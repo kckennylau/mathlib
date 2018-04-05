@@ -12,6 +12,9 @@ universe u
 namespace nat
 variables {m n k : ℕ}
 
+theorem pred_sub (n m : ℕ) : pred n - m = pred (n - m) :=
+by rw [← sub_one, nat.sub_sub, one_add]; refl
+
 theorem pos_iff_ne_zero : n > 0 ↔ n ≠ 0 :=
 ⟨ne_of_gt, nat.pos_of_ne_zero⟩
 
@@ -22,11 +25,24 @@ or.elim (le_total n m)
   (assume : n ≤ m, begin rw [sub_eq_zero_of_le this, zero_add], exact this end)
   (assume : m ≤ n, begin rw (nat.sub_add_cancel this) end)
 
+theorem sub_add_eq_max (n m : ℕ) : n - m + m = max n m :=
+eq_max (nat.le_sub_add _ _) (le_add_left _ _) $ λ k h₁ h₂,
+by rw ← nat.sub_add_cancel h₂; exact
+add_le_add_right (nat.sub_le_sub_right h₁ _) _
+
+theorem sub_add_min (n m : ℕ) : n - m + min n m = n :=
+(le_total n m).elim
+  (λ h, by rw [min_eq_left h, sub_eq_zero_of_le h, zero_add])
+  (λ h, by rw [min_eq_right h, nat.sub_add_cancel h])
+
 protected theorem add_sub_cancel' {n m : ℕ} (h : n ≥ m) : m + (n - m) = n :=
 by rw [add_comm, nat.sub_add_cancel h]
 
 protected theorem sub_eq_of_eq_add (h : k = m + n) : k - m = n :=
 begin rw [h, nat.add_sub_cancel_left] end
+
+theorem sub_min (n m : ℕ) : n - min n m = n - m :=
+nat.sub_eq_of_eq_add $ by rw [add_comm, sub_add_min]
 
 protected theorem lt_of_sub_pos (h : n - m > 0) : m < n :=
 lt_of_not_ge
@@ -98,7 +114,7 @@ protected theorem sub_lt_left_iff_lt_add (H : n ≤ k) : k - n < m ↔ k < n + m
 protected theorem le_sub_left_iff_add_le (H : m ≤ k) : n ≤ k - m ↔ m + n ≤ k :=
 le_iff_le_iff_lt_iff_lt.2 (nat.sub_lt_left_iff_lt_add H)
 
-@[simp] protected theorem le_sub_right_iff_add_le (H : n ≤ k) : m ≤ k - n ↔ m + n ≤ k :=
+protected theorem le_sub_right_iff_add_le (H : n ≤ k) : m ≤ k - n ↔ m + n ≤ k :=
 by rw [nat.le_sub_left_iff_add_le H, add_comm]
 
 protected theorem lt_sub_left_iff_add_lt (H : m ≤ k) : n < k - m ↔ m + n < k :=
@@ -106,16 +122,16 @@ protected theorem lt_sub_left_iff_add_lt (H : m ≤ k) : n < k - m ↔ m + n < k
          rwa [nat.add_sub_cancel' H] at this,
  nat.lt_sub_left_of_add_lt⟩
 
-@[simp] protected theorem lt_sub_right_iff_add_lt (H : n ≤ k) : m < k - n ↔ m + n < k :=
+protected theorem lt_sub_right_iff_add_lt (H : n ≤ k) : m < k - n ↔ m + n < k :=
 by rw [nat.lt_sub_left_iff_add_lt H, add_comm]
 
 theorem sub_le_left_iff_le_add (H : n ≤ m) : m - n ≤ k ↔ m ≤ n + k :=
 le_iff_le_iff_lt_iff_lt.2 (nat.lt_sub_left_iff_add_lt H)
 
-@[simp] theorem sub_le_right_iff_le_add (H : k ≤ m) : m - k ≤ n ↔ m ≤ n + k :=
+theorem sub_le_right_iff_le_add (H : k ≤ m) : m - k ≤ n ↔ m ≤ n + k :=
 by rw [nat.sub_le_left_iff_le_add H, add_comm]
 
-@[simp] protected theorem sub_lt_right_iff_lt_add (H : k ≤ m) : m - k < n ↔ m < n + k :=
+protected theorem sub_lt_right_iff_lt_add (H : k ≤ m) : m - k < n ↔ m < n + k :=
 by rw [nat.sub_lt_left_iff_lt_add H, add_comm]
 
 protected theorem sub_le_sub_left_iff (H : k ≤ m) : m - n ≤ m - k ↔ k ≤ n :=
@@ -142,20 +158,22 @@ lemma lt_pred_of_succ_lt {n m : ℕ} : succ n < m → n < pred m :=
 protected theorem mul_ne_zero {n m : ℕ} (n0 : n ≠ 0) (m0 : m ≠ 0) : n * m ≠ 0
 | nm := (eq_zero_of_mul_eq_zero nm).elim n0 m0
 
-protected theorem eq_mul_of_div_eq_right {a b c : ℕ} (H1 : b ∣ a) (H2 : a / b = c) : 
-  a = b * c := 
-by rw [← H2, nat.mul_div_cancel' H1] 
- 
-protected theorem div_eq_iff_eq_mul_right {a b c : ℕ} (H : b > 0) (H' : b ∣ a) : 
-  a / b = c ↔ a = b * c := 
-⟨nat.eq_mul_of_div_eq_right H', nat.div_eq_of_eq_mul_right H⟩ 
- 
-protected theorem div_eq_iff_eq_mul_left {a b c : ℕ} (H : b > 0) (H' : b ∣ a) : 
-  a / b = c ↔ a = c * b := 
-by rw mul_comm; exact nat.div_eq_iff_eq_mul_right H H' 
- 
-protected theorem eq_mul_of_div_eq_left {a b c : ℕ} (H1 : b ∣ a) (H2 : a / b = c) : 
-  a = c * b := 
+attribute [simp] nat.div_self
+
+protected theorem eq_mul_of_div_eq_right {a b c : ℕ} (H1 : b ∣ a) (H2 : a / b = c) :
+  a = b * c :=
+by rw [← H2, nat.mul_div_cancel' H1]
+
+protected theorem div_eq_iff_eq_mul_right {a b c : ℕ} (H : b > 0) (H' : b ∣ a) :
+  a / b = c ↔ a = b * c :=
+⟨nat.eq_mul_of_div_eq_right H', nat.div_eq_of_eq_mul_right H⟩
+
+protected theorem div_eq_iff_eq_mul_left {a b c : ℕ} (H : b > 0) (H' : b ∣ a) :
+  a / b = c ↔ a = c * b :=
+by rw mul_comm; exact nat.div_eq_iff_eq_mul_right H H'
+
+protected theorem eq_mul_of_div_eq_left {a b c : ℕ} (H1 : b ∣ a) (H2 : a / b = c) :
+  a = c * b :=
 by rw [mul_comm, nat.eq_mul_of_div_eq_right H1 H2]
 
 protected theorem mul_right_inj {a b c : ℕ} (ha : a > 0) : b * a = c * a ↔ b = c :=
@@ -220,17 +238,17 @@ theorem mul_self_inj {n m : ℕ} : n * n = m * m ↔ n = m :=
 le_antisymm_iff.trans (le_antisymm_iff.trans
   (and_congr mul_self_le_mul_self_iff mul_self_le_mul_self_iff)).symm
 
-instance decidable_ball_lt (n : nat) (P : Π k < n, Prop)
-  [H : ∀ n h, decidable (P n h)] : decidable (∀ n h, P n h) :=
+instance decidable_ball_lt (n : nat) (P : Π k < n, Prop) :
+  ∀ [H : ∀ n h, decidable (P n h)], decidable (∀ n h, P n h) :=
 begin
-  induction n with n IH,
+  induction n with n IH; intro; resetI,
   { exact is_true (λ n, dec_trivial) },
-  cases IH (λ k h, P k (lt_succ_of_lt h)),
-  { refine is_false (mt _ a), intros hn k h, apply hn },
-  by_cases P n (lt_succ_self n) with p,
-  { exact is_true (λ k h,
-     (lt_or_eq_of_le $ le_of_lt_succ h).elim (a _)
-       (λ e, match k, e, h with _, rfl, h := p end)) },
+  cases IH (λ k h, P k (lt_succ_of_lt h)) with h,
+  { refine is_false (mt _ h), intros hn k h, apply hn },
+  by_cases p : P n (lt_succ_self n),
+  { exact is_true (λ k h',
+     (lt_or_eq_of_le $ le_of_lt_succ h').elim (h _)
+       (λ e, match k, e, h' with _, rfl, h := p end)) },
   { exact is_false (mt (λ hn, hn _ _) p) }
 end
 
@@ -284,10 +302,14 @@ lt_of_lt_of_le (bit_lt_bit0 _ h) (bit0_le_bit _ (le_refl _))
 
 /- partial subtraction -/
 
+/-- Partial predecessor operation. Returns `ppred n = some m`
+  if `n = m + 1`, otherwise `none`. -/
 @[simp] def ppred : ℕ → option ℕ
 | 0     := none
 | (n+1) := some n
 
+/-- Partial subtraction operation. Returns `psub m n = some k`
+  if `m = n + k`, otherwise `none`. -/
 @[simp] def psub (m : ℕ) : ℕ → option ℕ
 | 0     := some m
 | (n+1) := psub n >>= ppred
@@ -328,18 +350,32 @@ theorem psub_eq_sub {m n} (h : n ≤ m) : psub m n = some (m - n) :=
 psub_eq_some.2 $ nat.sub_add_cancel h
 
 theorem psub_add (m n k) : psub m (n + k) = do x ← psub m n, psub x k :=
-by induction k; simp [*, add_succ, monad.bind_assoc]
+by induction k; simp [*, add_succ, bind_assoc]
 
 /- pow -/
 
 theorem pow_add (a m n : ℕ) : a^(m + n) = a^m * a^n :=
-by induction n; simp [*, pow_succ]
+by induction n; simp [*, pow_succ, mul_assoc]
 
 theorem pow_dvd_pow (a : ℕ) {m n : ℕ} (h : m ≤ n) : a^m ∣ a^n :=
 by rw [← nat.add_sub_cancel' h, pow_add]; apply dvd_mul_right
 
 @[simp] theorem bodd_div2_eq (n : ℕ) : bodd_div2 n = (bodd n, div2 n) :=
 by unfold bodd div2; cases bodd_div2 n; refl
+
+/- foldl & foldr -/
+
+/-- `foldl op n a` is the `n`-times iterate of `op` on `a`. -/
+@[simp] def foldl {α : Sort*} (op : α → α) : ℕ → α → α
+ | 0        a := a
+ | (succ k) a := foldl k (op a)
+
+/-- `foldr op n a` is the `n`-times iterate of `op` on `a`.
+  It is provably the same as `foldl` but has different
+  definitional equalities. -/
+@[simp] def foldr {α : Sort*} (op : α → α) (a : α) : ℕ → α
+ | 0        := a
+ | (succ k) := op (foldr k)
 
 /- size and shift -/
 
@@ -365,14 +401,14 @@ end
 @[simp] theorem size_bit1 (n) : size (bit1 n) = succ (size n) :=
 @size_bit tt n (nat.bit1_ne_zero n)
 
-@[simp] theorem size_one : size 1 = 1 := size_bit1 0
+@[simp] theorem size_one : size 1 = 1 := by apply size_bit1 0
 
 @[simp] theorem size_shiftl' {b m n} (h : shiftl' b m n ≠ 0) :
   size (shiftl' b m n) = size m + n :=
 begin
   induction n with n IH; simp [shiftl'] at h ⊢,
   rw [size_bit h, nat.add_succ],
-  by_cases shiftl' b m n = 0 with s0; [skip, rw [IH s0]],
+  by_cases s0 : shiftl' b m n = 0; [skip, rw [IH s0]],
   rw s0 at h ⊢,
   cases b, {exact absurd rfl h},
   have : shiftl' tt m n + 1 = 1 := congr_arg (+1) s0,
@@ -408,7 +444,7 @@ begin
   apply binary_rec _ _ m,
   { intros n h, apply zero_le },
   { intros b m IH n h,
-    by_cases bit b m = 0 with e, { rw e, apply zero_le },
+    by_cases e : bit b m = 0, { rw e, apply zero_le },
     rw [size_bit e],
     cases n with n,
     { exact e.elim (eq_zero_of_le_zero (le_of_lt_succ h)) },
@@ -436,9 +472,10 @@ size_le.2 $ lt_of_le_of_lt h (lt_size_self _)
 
 /- factorial -/
 
+/-- `fact n` is the factorial of `n`. -/
 @[simp] def fact : nat → nat
 | 0        := 1
-| (succ n) := (succ n) * fact n
+| (succ n) := succ n * fact n
 
 @[simp] theorem fact_zero : fact 0 = 1 := rfl
 
@@ -458,7 +495,7 @@ begin
   { have := eq_zero_of_le_zero h, subst m, simp },
   { cases eq_or_lt_of_le h with he hl,
     { subst m, simp },
-    { apply dvd_mul_of_dvd_left (IH (le_of_lt_succ hl)) } }
+    { apply dvd_mul_of_dvd_right (IH (le_of_lt_succ hl)) } }
 end
 
 theorem dvd_fact : ∀ {m n}, m > 0 → m ≤ n → m ∣ fact n

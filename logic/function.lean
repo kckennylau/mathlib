@@ -5,36 +5,84 @@ Authors: Johannes Hölzl, Mario Carneiro
 
 Miscellaneous function constructions and lemmas.
 -/
-import logic.basic
+import logic.basic data.option
 
-universes u v
-variables {α : Type u} {β : Type v} {f : α → β}
+universes u v w
 
 namespace function
+
+section
+variables {α : Sort u} {β : Sort v} {f : α → β}
+
+lemma hfunext {α α': Sort u} {β : α → Sort v} {β' : α' → Sort v} {f : Πa, β a} {f' : Πa, β' a} 
+  (hα : α = α') (h : ∀a a', a == a' → f a == f' a') : f == f' :=
+begin
+  subst hα,
+  have : ∀a, f a == f' a,
+  { intro a, exact h a a (heq.refl a) },
+  have : β = β',
+  { funext a, exact type_eq_of_heq (this a) },
+  subst this,
+  apply heq_of_eq,
+  funext a,
+  exact eq_of_heq (this a)
+end
+
+lemma funext_iff {β : α → Sort*} {f₁ f₂ : Π (x : α), β x} : f₁ = f₂ ↔ (∀a, f₁ a = f₂ a) :=
+iff.intro (assume h a, h ▸ rfl) funext
+
+lemma comp_apply {α : Sort u} {β : Sort v} {φ : Sort w} (f : β → φ) (g : α → β) (a : α) :
+  (f ∘ g) a = f (g a) := rfl
 
 @[simp] theorem injective.eq_iff (I : injective f) {a b : α} :
   f a = f b ↔ a = b :=
 ⟨@I _ _, congr_arg f⟩
 
-local attribute [instance] classical.decidable_inhabited classical.prop_decidable
+def injective.decidable_eq [decidable_eq β] (I : injective f) : decidable_eq α
+| a b := decidable_of_iff _ I.eq_iff
 
-noncomputable def partial_inv (f : α → β) (b : β) : option α :=
+theorem cantor_surjective {α} (f : α → α → Prop) : ¬ function.surjective f | h :=
+let ⟨D, e⟩ := h (λ a, ¬ f a a) in
+(iff_not_self (f D D)).1 $ iff_of_eq (congr_fun e D)
+
+/-- `g` is a partial inverse to `f` (an injective but not necessarily
+  surjective function) if `g y = some x` implies `f x = y`, and `g y = none`
+  implies that `y` is not in the range of `f`. -/
+def is_partial_inv {α β} (f : α → β) (g : β → option α) : Prop :=
+∀ x y, g y = some x ↔ f x = y
+
+theorem injective_of_partial_inv {α β} {f : α → β} {g} (H : is_partial_inv f g) : injective f :=
+λ a b h, option.some.inj $ ((H _ _).2 h).symm.trans ((H _ _).2 rfl)
+
+theorem injective_of_partial_inv_right {α β} {f : α → β} {g} (H : is_partial_inv f g)
+ (x y b) (h₁ : b ∈ g x) (h₂ : b ∈ g y) : x = y :=
+((H _ _).1 h₁).symm.trans ((H _ _).1 h₂)
+
+local attribute [instance] classical.prop_decidable
+
+/-- We can use choice to construct explicitly a partial inverse for
+  a given injective function `f`. -/
+noncomputable def partial_inv {α β} (f : α → β) (b : β) : option α :=
 if h : ∃ a, f a = b then some (classical.some h) else none
 
-theorem partial_inv_eq {f : α → β} (I : injective f) (a : α) : (partial_inv f (f a)) = some a :=
-have h : ∃ a', f a' = f a, from ⟨_, rfl⟩,
-(dif_pos h).trans (congr_arg _ (I $ classical.some_spec h))
+theorem partial_inv_of_injective {α β} {f : α → β} (I : injective f) :
+  is_partial_inv f (partial_inv f) | a b :=
+⟨λ h, if h' : ∃ a, f a = b then begin
+    rw [partial_inv, dif_pos h'] at h,
+    injection h with h, subst h,
+    apply classical.some_spec h'
+  end else by rw [partial_inv, dif_neg h'] at h; contradiction,
+ λ e, e ▸ have h : ∃ a', f a' = f a, from ⟨_, rfl⟩,
+   (dif_pos h).trans (congr_arg _ (I $ classical.some_spec h))⟩
 
-theorem partial_inv_eq_of_eq {f : α → β} (I : injective f) {b : β} {a : α}
-  (h : partial_inv f b = some a) : f a = b :=
-by by_cases (∃ a, f a = b) with h'; simp [partial_inv, h'] at h;
-   injection h with h; subst h; apply classical.some_spec h'
-
-variables {s : set α} {a : α} {b : β}
+end
 
 section inv_fun
-variable [inhabited α]
+variables {α : Type u} [inhabited α] {β : Sort v} {f : α → β} {s : set α} {a : α} {b : β}
 
+local attribute [instance] classical.prop_decidable
+
+/-- Construct the inverse for a function `f` on domain `s`. -/
 noncomputable def inv_fun_on (f : α → β) (s : set α) (b : β) : α :=
 if h : ∃a, a ∈ s ∧ f a = b then classical.some h else default α
 
@@ -53,6 +101,8 @@ h _ (inv_fun_on_mem this) _ ha (inv_fun_on_eq this)
 theorem inv_fun_on_neg (h : ¬ ∃a∈s, f a = b) : inv_fun_on f s b = default α :=
 by rw [bex_def] at h; rw [inv_fun_on, dif_neg h]
 
+/-- The inverse of a function (which is a left inverse if `f` is injective
+  and a right inverse if `f` is surjective). -/
 noncomputable def inv_fun (f : α → β) : β → α := inv_fun_on f set.univ
 
 theorem inv_fun_eq (h : ∃a, f a = b) : f (inv_fun f b) = b :=
@@ -72,26 +122,65 @@ have f (inv_fun f (f b)) = f b,
   from inv_fun_eq ⟨b, rfl⟩,
 hf this
 
+lemma inv_fun_surjective (hf : injective f) : surjective (inv_fun f) :=
+surjective_of_has_right_inverse ⟨_, left_inverse_inv_fun hf⟩
+
+lemma inv_fun_comp (hf : injective f) : inv_fun f ∘ f = id := funext $ left_inverse_inv_fun hf
+
 lemma injective.has_left_inverse (hf : injective f) : has_left_inverse f :=
 ⟨inv_fun f, left_inverse_inv_fun hf⟩
 
+lemma injective_iff_has_left_inverse : injective f ↔ has_left_inverse f :=
+⟨injective.has_left_inverse, injective_of_has_left_inverse⟩
+
 end inv_fun
 
-section surj_inv
+theorem cantor_injective {α : Type*} (f : (α → Prop) → α) : ¬ function.injective f | h :=
+cantor_surjective (inv_fun f) $
+surjective_of_has_right_inverse ⟨f, left_inverse_inv_fun h⟩
 
+section surj_inv
+variables {α : Sort u} {β : Sort v} {f : α → β}
+
+/-- The inverse of a surjective function. (Unlike `inv_fun`, this does not require
+  `α` to be inhabited.) -/
 noncomputable def surj_inv {f : α → β} (h : surjective f) (b : β) : α := classical.some (h b)
 
-lemma surj_inv_eq (h : surjective f) : f (surj_inv h b) = b := classical.some_spec (h b)
+lemma surj_inv_eq (h : surjective f) (b) : f (surj_inv h b) = b := classical.some_spec (h b)
 
 lemma right_inverse_surj_inv (hf : surjective f) : right_inverse (surj_inv hf) f :=
-assume b, surj_inv_eq hf
+surj_inv_eq hf
+
+lemma left_inverse_surj_inv (hf : bijective f) : left_inverse (surj_inv hf.2) f :=
+right_inverse_of_injective_of_left_inverse hf.1 (right_inverse_surj_inv hf.2)
 
 lemma surjective.has_right_inverse (hf : surjective f) : has_right_inverse f :=
 ⟨_, right_inverse_surj_inv hf⟩
+
+lemma surjective_iff_has_right_inverse : surjective f ↔ has_right_inverse f :=
+⟨surjective.has_right_inverse, surjective_of_has_right_inverse⟩
+
+lemma bijective_iff_has_inverse : bijective f ↔ ∃ g, left_inverse g f ∧ right_inverse g f :=
+⟨λ hf, ⟨_, left_inverse_surj_inv hf, right_inverse_surj_inv hf.2⟩,
+ λ ⟨g, gl, gr⟩, ⟨injective_of_left_inverse gl, surjective_of_has_right_inverse ⟨_, gr⟩⟩⟩
 
 lemma injective_surj_inv (h : surjective f) : injective (surj_inv h) :=
 injective_of_has_left_inverse ⟨f, right_inverse_surj_inv h⟩
 
 end surj_inv
+
+section update
+variables {α : Sort u} {β : α → Sort v} [decidable_eq α]
+
+def update (f : Πa, β a) (a' : α) (v : β a') (a : α) : β a :=
+if h : a = a' then eq.rec v h.symm else f a
+
+@[simp] lemma update_same {a : α} {v : β a} {f : Πa, β a} : update f a v a = v :=
+dif_pos rfl
+
+@[simp] lemma update_noteq {a a' : α} {v : β a'} {f : Πa, β a} (h : a ≠ a') : update f a' v a = f a :=
+dif_neg h
+
+end update
 
 end function

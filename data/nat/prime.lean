@@ -11,6 +11,8 @@ open bool subtype
 namespace nat
 open decidable
 
+/-- `prime p` means that `p` is a prime number, that is, a natural number
+  at least 2 whose only divisors are `p` and `1`. -/
 def prime (p : ℕ) := p ≥ 2 ∧ ∀ m ∣ p, m = 1 ∨ m = p
 
 theorem prime.ge_two {p : ℕ} : prime p → p ≥ 2 := and.left
@@ -92,7 +94,7 @@ section min_fac
   using_well_founded {rel_tac :=
     λ _ _, `[exact ⟨_, measure_wf (λ k, sqrt n + 2 - k)⟩]}
 
-  -- returns the smallest prime factor of n ≠ 1
+  /-- Returns the smallest prime factor of `n ≠ 1`. -/
   def min_fac : ℕ → ℕ
   | 0 := 2
   | 1 := 1
@@ -114,14 +116,14 @@ section min_fac
     ∀ k i, k = 2*i+3 → (∀ m ≥ 2, m ∣ n → k ≤ m) → min_fac_prop n (min_fac_aux n k)
   | k := λ i e a, begin
     rw min_fac_aux,
-    by_cases n < k*k with h; simp [h],
+    by_cases h : n < k*k; simp [h],
     { have pp : prime n :=
         prime_def_le_sqrt.2 ⟨n2, λ m m2 l d,
           not_lt_of_ge l $ lt_of_lt_of_le (sqrt_lt.2 h) (a m m2 d)⟩,
       from ⟨n2, dvd_refl _, λ m m2 d, le_of_eq
         ((dvd_prime_ge_two pp m2).1 d).symm⟩ },
     have k2 : 2 ≤ k, { subst e, exact dec_trivial },
-    by_cases k ∣ n with dk; simp [dk],
+    by_cases dk : k ∣ n; simp [dk],
     { exact ⟨k2, dk, a⟩ },
     { refine have _, from min_fac_lemma n k h,
         min_fac_aux_has_prop (k+2) (i+1)
@@ -138,10 +140,10 @@ section min_fac
   theorem min_fac_has_prop {n : ℕ} (n1 : n ≠ 1) :
     min_fac_prop n (min_fac n) :=
   begin
-    by_cases n = 0 with n0, {simp [n0, min_fac_prop, ge]},
+    by_cases n0 : n = 0, {simp [n0, min_fac_prop, ge]},
     have n2 : 2 ≤ n, { revert n0 n1, rcases n with _|_|_; exact dec_trivial },
     simp [min_fac_eq n2],
-    by_cases 2 ∣ n with d2; simp [d2],
+    by_cases d2 : 2 ∣ n; simp [d2],
     { exact ⟨le_refl _, d2, λ k k2 d, k2⟩ },
     { refine min_fac_aux_has_prop n2 d2 3 0 rfl
         (λ m m2 d, (nat.eq_or_lt_of_le m2).resolve_left (mt _ d2)),
@@ -149,7 +151,7 @@ section min_fac
   end
 
   theorem min_fac_dvd (n : ℕ) : min_fac n ∣ n :=
-  by by_cases n = 1 with n1;
+  by by_cases n1 : n = 1;
      [exact n1.symm ▸ dec_trivial, exact (min_fac_has_prop n1).2.1]
 
   theorem min_fac_prime {n : ℕ} (n1 : n ≠ 1) : prime (min_fac n) :=
@@ -157,12 +159,12 @@ section min_fac
   prime_def_lt'.2 ⟨f2, λ m m2 l d, not_le_of_gt l (a m m2 (dvd_trans d fd))⟩
 
   theorem min_fac_le_of_dvd (n : ℕ) : ∀ (m : ℕ), m ≥ 2 → m ∣ n → min_fac n ≤ m :=
-  by by_cases n = 1 with n1;
+  by by_cases n1 : n = 1;
     [exact λ m m2 d, n1.symm ▸ le_trans dec_trivial m2,
      exact (min_fac_has_prop n1).2.2]
 
   theorem min_fac_pos (n : ℕ) : min_fac n > 0 :=
-  by by_cases n = 1 with n1;
+  by by_cases n1 : n = 1;
      [exact n1.symm ▸ dec_trivial, exact (min_fac_prime n1).pos]
 
   theorem min_fac_le {n : ℕ} (H : n > 0) : min_fac n ≤ n :=
@@ -210,6 +212,17 @@ suffices ∀ {n}, n ≥ 2 → ∃ p, p ≥ n ∧ prime p, from
     pp.not_dvd_one this,
   ⟨p, this, pp⟩
 
+/-- `factors n` is the prime factorization of `n`, listed in increasing order. -/
+def factors : ℕ → list ℕ
+| 0 := []
+| 1 := []
+| n@(k+2) := let m := min_fac n in
+  have n / m < n, from
+    have n * 1 < n * min_fac n, from nat.mul_lt_mul_of_pos_left
+      (min_fac_prime dec_trivial).gt_one (succ_pos _),
+    (nat.div_lt_iff_lt_mul _ _ (min_fac_pos _)).2 $ by simpa,
+  m :: factors (n / m)
+
 theorem prime.coprime_iff_not_dvd {p n : ℕ} (pp : prime p) : coprime p n ↔ ¬ p ∣ n :=
 ⟨λ co d, pp.not_dvd_one $ co.dvd_of_dvd_mul_left (by simp [d]),
  λ nd, coprime_of_dvd $ λ m m2 mp, ((dvd_prime_ge_two pp m2).1 mp).symm ▸ nd⟩
@@ -226,7 +239,7 @@ theorem prime.not_dvd_mul {p m n : ℕ} (pp : prime p)
   (Hm : ¬ p ∣ m) (Hn : ¬ p ∣ n) : ¬ p ∣ m * n :=
 mt pp.dvd_mul.1 $ by simp [Hm, Hn]
 
-theorem dvd_of_prime_of_dvd_pow {p m n : ℕ} (pp : prime p) (h : p ∣ m^n) : p ∣ m :=
+theorem prime.dvd_of_dvd_pow {p m n : ℕ} (pp : prime p) (h : p ∣ m^n) : p ∣ m :=
 by induction n with n IH;
    [exact pp.not_dvd_one.elim h,
     exact (pp.dvd_mul.1 h).elim IH id]

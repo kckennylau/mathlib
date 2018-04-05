@@ -22,7 +22,7 @@ import data.set order.galois_connection analysis.ennreal
 noncomputable theory
 
 open classical set lattice filter finset function
-local attribute [instance] decidable_inhabited prop_decidable
+local attribute [instance] prop_decidable
 
 universes u v w x
 
@@ -102,9 +102,9 @@ calc μ.measure' (s₁ ∪ s₂) = μ.measure' (⋃n, s n) : by rw [Un_s]
 
 protected lemma measure'_mono (h₁ : is_measurable s₁) (h₂ : is_measurable s₂) (hs : s₁ ⊆ s₂) :
   μ.measure' s₁ ≤ μ.measure' s₂ :=
-have hd : s₁ ∩ (s₂ \ s₁) = ∅, from set.ext $ by simp [mem_sdiff_iff] {contextual:=tt},
+have hd : s₁ ∩ (s₂ \ s₁) = ∅, from set.ext $ by simp [mem_sdiff] {contextual:=tt},
 have hu : s₁ ∪ (s₂ \ s₁) = s₂,
-  from set.ext $ assume x, by by_cases x ∈ s₁; simp [mem_sdiff_iff, h, @hs x] {contextual:=tt},
+  from set.ext $ assume x, by by_cases x ∈ s₁; simp [mem_sdiff, h, @hs x] {contextual:=tt},
 calc μ.measure' s₁ ≤ μ.measure' s₁ + μ.measure' (s₂ \ s₁) :
     le_add_of_nonneg_right' ennreal.zero_le
   ... = μ.measure' (s₁ ∪ (s₂ \ s₁)) :
@@ -137,7 +137,7 @@ protected def measure (s : set α) : ennreal := μ.to_outer_measure.measure_of s
 protected lemma measure_eq (hs : is_measurable s) : μ.measure s = μ.measure_of s hs :=
 le_antisymm
   (infi_le_of_le (λn, ⋃h : n = 0, s) $
-    infi_le_of_le begin simp [subset_def] end $
+    infi_le_of_le begin simp [set.subset_def] end $
     calc (∑i, ⨅ h : is_measurable (⋃ h : i = 0, s), μ.measure_of _ h) =
           ({0}:finset ℕ).sum (λi, ⨅ h : is_measurable (⋃ h : i = 0, s), μ.measure_of _ h) :
         tsum_eq_sum $ assume b,
@@ -183,7 +183,7 @@ measure_space_eq_of $ assume s hs,
 lemma measure_mono (h : s₁ ⊆ s₂) : μ.measure s₁ ≤ μ.measure s₂ := μ.to_outer_measure.mono h
 
 lemma measure_Union_le_tsum_nat {s : ℕ → set α} : μ.measure (⋃i, s i) ≤ (∑i, μ.measure (s i)) :=
-@outer_measure.Union_nat α μ.to_outer_measure s
+μ.to_outer_measure.Union_nat s
 
 lemma measure_union (hd : disjoint s₁ s₂) (h₁ : is_measurable s₁) (h₂ : is_measurable s₂) :
   μ.measure (s₁ ∪ s₂) = μ.measure s₁ + μ.measure s₂ :=
@@ -247,7 +247,7 @@ calc μ.measure (⋃b∈i, s b) = μ.measure (⋃i, g i) : by rw [eq₁]
       have g n ≠ ∅, from assume h, by simp [h] at hn; assumption,
       have ∃b∈i, f b = n,
         from let ⟨x, hx⟩ := set.exists_mem_of_ne_empty this in
-        by simp at hx; exact let ⟨b, h_eq, hb, _⟩ := hx in ⟨b, hb, h_eq⟩,
+        by simp at hx; exact let ⟨b, hb, h_eq, _⟩ := hx in ⟨b, hb, h_eq⟩,
       let ⟨b, hb, h_eq⟩ := this in
       have g n = s b,
         from h_eq ▸ h_gf b hb,
@@ -280,8 +280,8 @@ lemma measure_Union_eq_supr_nat {s : ℕ → set α} (h : ∀i, is_measurable (s
 have ∀i, (range (i + 1)).sum (λi, μ.measure (disjointed s i)) = μ.measure (s i),
 begin
   intro i, induction i,
-  case nat.zero { simp [disjointed, nat.not_lt_zero, univ_inter] },
-  case nat.succ i ih {
+  case nat.zero { simp [disjointed, nat.not_lt_zero, inter_univ] },
+  case nat.succ : i ih {
     rw [range_succ, sum_insert, ih, ←measure_union],
     { show μ.measure (disjointed s (i + 1) ∪ s i) = μ.measure (s (i + 1)),
       rw [disjointed_of_mono hs, sdiff_union_same, union_of_subset_right],
@@ -347,38 +347,47 @@ def outer_measure.to_measure
   measure_of_empty := m.empty,
   measure_of_Union := assume s hs hf, m.Union_eq_of_caratheodory (assume i, h _ $ hs i) hf }
 
-section constructions
-variables {α : Type u} [measurable_space α]
+lemma le_to_outer_measure_caratheodory {α : Type*} [ms : measurable_space α] {μ : measure_space α} :
+  ms ≤ μ.to_outer_measure.caratheodory :=
+assume s hs, outer_measure.caratheodory_is_measurable $ assume t, by_cases
+  (assume : is_measurable t,
+    have hst₁ : is_measurable (t ∩ s), from is_measurable_inter this hs,
+    have hst₂ : is_measurable (t \ s), from is_measurable_sdiff this hs,
+    have t_eq : (t ∩ s) ∪ (t \ s) = t, from set.ext $ assume x, by by_cases x∈s; simp [h],
+    have h : (t ∩ s) ∩ (t \ s) = ∅, from set.ext $ by simp {contextual:=tt},
+    by rw [← μ.measure_eq_measure' this, ← μ.measure_eq_measure' hst₁, ← μ.measure_eq_measure' hst₂,
+           ← measure_union h hst₁ hst₂, t_eq])
+  (assume : ¬ is_measurable t, le_infi $ assume h, false.elim $ this h)
 
-def count : measure_space α :=
-{ measure_of := λs hs, ∑x, if x ∈ s then 1 else 0,
-  measure_of_empty := by simp,
-  measure_of_Union := assume f _ hd,
-    begin
-      rw [ennreal.tsum_comm],
-      congr, apply funext, intro,
-      by_cases ∃i, x ∈ f i,
-      { have h' : (∑(i : ℕ), ite (x ∈ f i) 1 0 : ennreal) = 1,
-          from let ⟨i, hi⟩ := h in
-            calc (∑(i : ℕ), ite (x ∈ f i) 1 0 : ennreal) =
-              finset.sum {i} (λi, ite (x ∈ f i) 1 0) :
-                tsum_eq_sum (assume j hj,
-                  have j ≠ i, by simp at hj; assumption,
-                  have f j ∩ f i = ∅, from hd j i this,
-                  have x ∉ f j,
-                    from assume hj,
-                    have hx : x ∈ f j ∩ f i, from ⟨hj, hi⟩,
-                    by rwa [this] at hx,
-                  by simp [this])
-              ... = (1 : ennreal) : by simp [hi],
-        simp [h, h'] },
-      { have h₁ : x ∉ ⋃ (i : ℕ), f i, by simp [h],
-        have h₂ : ∀i, x ∉ f i, from assume i hi, h ⟨i, hi⟩,
-        simp [h₁, h₂] }
-    end }
+lemma to_outer_measure_to_measure {α : Type*} [ms : measurable_space α] {μ : measure_space α} :
+  μ.to_outer_measure.to_measure le_to_outer_measure_caratheodory = μ :=
+measure_space_eq $ assume s hs,
+  by rw [μ.measure_eq hs, measure_space.measure_eq _ hs]; exact μ.measure_eq hs
+
+namespace measure_space
+variables {α : Type*} {β : Type*} {γ : Type*}
+  [measurable_space α] [measurable_space β] [measurable_space γ]
 
 instance : has_zero (measure_space α) :=
 ⟨{ measure_of := λs hs, 0, measure_of_empty := rfl, measure_of_Union := by simp }⟩
+
+instance : inhabited (measure_space α) := ⟨0⟩
+
+instance : has_add (measure_space α) :=
+⟨λμ₁ μ₂, { measure_space .
+  measure_of := λs hs, μ₁.measure_of s hs + μ₂.measure_of s hs,
+  measure_of_empty := by simp [measure_space.measure_of_empty],
+  measure_of_Union := assume f hf hd,
+    by simp [measure_space.measure_of_Union, hf, hd, tsum_add] {contextual := tt} }⟩
+
+instance : add_comm_monoid (measure_space α) :=
+{ add_comm_monoid .
+  zero      := 0,
+  add       := (+),
+  add_assoc := assume a b c, measure_space_eq_of $ assume s hs, add_assoc _ _ _,
+  add_comm  := assume a b, measure_space_eq_of $ assume s hs, add_comm _ _,
+  zero_add  := assume a, measure_space_eq_of $ assume s hs, zero_add _,
+  add_zero  := assume a, measure_space_eq_of $ assume s hs, add_zero _ }
 
 instance : partial_order (measure_space α) :=
 { partial_order .
@@ -388,6 +397,58 @@ instance : partial_order (measure_space α) :=
   le_antisymm := assume m₁ m₂ h₁ h₂, measure_space_eq_of $
     assume s hs, le_antisymm (h₁ s hs) (h₂ s hs) }
 
-end constructions
+def map (f : α → β) (μ : measure_space α) : measure_space β :=
+if hf : measurable f then
+  { measure_of := λs hs, μ.measure (f ⁻¹' s),
+    measure_of_empty := by simp,
+    measure_of_Union := assume s hs h,
+      have h' : pairwise (disjoint on λ (i : ℕ), f ⁻¹' s i),
+        from assume i j hij,
+        have s i ∩ s j = ∅, from h i j hij,
+        show f ⁻¹' s i ∩ f ⁻¹' s j = ∅, by rw [← preimage_inter, this, preimage_empty],
+      by rw [preimage_Union]; exact measure_Union_nat h' (assume i, hf (s i) (hs i)) }
+else 0
+
+variables {μ : measure_space α}
+
+lemma map_measure {f : α → β} {s : set β} (hf : measurable f) (hs : is_measurable s) :
+  (μ.map f).measure s = μ.measure (f ⁻¹' s) :=
+by rw [map, dif_pos hf, measure_space.measure_eq _ hs]
+
+lemma map_id : map id μ = μ :=
+measure_space_eq $ assume s, map_measure measurable_id
+
+lemma map_comp {f : α → β} {g : β → γ} (hf : measurable f) (hg : measurable g) :
+  map (g ∘ f) μ = map g (map f μ) :=
+measure_space_eq $ assume s hs,
+  by rw [map_measure (measurable_comp hf hg) hs, map_measure hg hs, map_measure hf (hg s hs),
+      preimage_comp]
+
+/-- The dirac measure. -/
+def dirac (a : α) : measure_space α :=
+{ measure_of       := λs hs, ⨆h:a ∈ s, 1,
+  measure_of_empty := by simp [ennreal.bot_eq_zero],
+  measure_of_Union := assume f hf h, by_cases
+    (assume : ∃i, a ∈ f i,
+      let ⟨i, hi⟩ := this in
+      have ∀j, (a ∈ f j) ↔ (i = j), from
+        assume j, ⟨assume hj, classical.by_contradiction $ assume hij,
+            have eq: f i ∩ f j = ∅, from h i j hij,
+            have a ∈ f i ∩ f j, from ⟨hi, hj⟩,
+            (mem_empty_eq a).mp $ by rwa [← eq],
+          assume h, h ▸ hi⟩,
+      by simp [this])
+    (by simp [ennreal.bot_eq_zero] {contextual := tt}) }
+
+/-- Sum of an indexed family of measures. -/
+def sum {ι : Type*} (f : ι → measure_space α) : measure_space α :=
+{ measure_of       := λs hs, ∑i, (f i).measure s,
+  measure_of_empty := by simp,
+  measure_of_Union := assume f hf h, by simp [measure_Union_nat h hf]; rw [ennreal.tsum_comm] }
+
+/-- Counting measure on any measurable space. -/
+def count : measure_space α := sum dirac
+
+end measure_space
 
 end measure_theory

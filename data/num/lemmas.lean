@@ -242,26 +242,16 @@ namespace num
   meta def transfer : tactic unit := `[intros, transfer_rw, try {simp}]
 
   instance : comm_semiring num :=
-  { add            := (+),
-    add_assoc      := by transfer,
-    zero           := 0,
-    zero_add       := zero_add,
-    add_zero       := add_zero,
-    add_comm       := by transfer,
-    mul            := (*),
-    mul_assoc      := by transfer,
-    one            := 1,
-    one_mul        := by transfer,
-    mul_one        := by transfer,
-    left_distrib   := by {transfer, simp [left_distrib]},
-    right_distrib  := by {transfer, simp [left_distrib]},
-    zero_mul       := by transfer,
-    mul_zero       := by transfer,
-    mul_comm       := by transfer }
+  by refine {
+    add      := (+),
+    zero     := 0,
+    zero_add := zero_add,
+    add_zero := add_zero,
+    mul      := (*),
+    one      := 1, .. }; try {transfer}; simp [mul_add, mul_left_comm, mul_comm]
 
-  instance : decidable_linear_ordered_semiring num :=
-  { num.comm_semiring with
-    add_left_cancel            := by {intros a b c, transfer_rw, apply add_left_cancel},
+  instance : ordered_cancel_comm_monoid num :=
+  { add_left_cancel            := by {intros a b c, transfer_rw, apply add_left_cancel},
     add_right_cancel           := by {intros a b c, transfer_rw, apply add_right_cancel},
     lt                         := (<),
     lt_iff_le_not_le           := by {intros a b, transfer_rw, apply lt_iff_le_not_le},
@@ -269,9 +259,12 @@ namespace num
     le_refl                    := by transfer,
     le_trans                   := by {intros a b c, transfer_rw, apply le_trans},
     le_antisymm                := by {intros a b, transfer_rw, apply le_antisymm},
-    le_total                   := by {intros a b, transfer_rw, apply le_total},
     add_le_add_left            := by {intros a b h c, revert h, transfer_rw, exact λ h, add_le_add_left h c},
     le_of_add_le_add_left      := by {intros a b c, transfer_rw, apply le_of_add_le_add_left},
+    ..num.comm_semiring }
+
+  instance : decidable_linear_ordered_semiring num :=
+  { le_total                   := by {intros a b, transfer_rw, apply le_total},
     zero_lt_one                := dec_trivial,
     mul_le_mul_of_nonneg_left  := by {intros a b c, transfer_rw, apply mul_le_mul_of_nonneg_left},
     mul_le_mul_of_nonneg_right := by {intros a b c, transfer_rw, apply mul_le_mul_of_nonneg_right},
@@ -279,7 +272,8 @@ namespace num
     mul_lt_mul_of_pos_right    := by {intros a b c, transfer_rw, apply mul_lt_mul_of_pos_right},
     decidable_lt               := num.decidable_lt,
     decidable_le               := num.decidable_le,
-    decidable_eq               := num.decidable_eq }
+    decidable_eq               := num.decidable_eq,
+    ..num.comm_semiring, ..num.ordered_cancel_comm_monoid }
 
 end num
 
@@ -323,26 +317,17 @@ namespace pos_num
   `[repeat {rw ← to_nat_inj <|> rw ← lt_to_nat <|> rw ← le_to_nat},
     repeat {rw add_to_nat <|> rw mul_to_nat <|> rw cast_one <|> rw cast_zero}]
 
-  meta def transfer : tactic unit := `[intros, transfer_rw, try {simp}]
+  meta def transfer : tactic unit := `[intros, transfer_rw, try {simp [mul_comm, mul_left_comm]}]
 
   instance : add_comm_semigroup pos_num :=
-  { add            := (+),
-    add_assoc      := by transfer,
-    add_comm       := by transfer }
+  by refine {add := (+), ..}; transfer
 
   instance : comm_monoid pos_num :=
-  { mul            := (*),
-    mul_assoc      := by transfer,
-    one            := 1,
-    one_mul        := by transfer,
-    mul_one        := by transfer,
-    mul_comm       := by transfer }
+  by refine {mul := (*), one := 1, ..}; transfer
+
 
   instance : distrib pos_num :=
-  { add            := (+),
-    mul            := (*),
-    left_distrib   := by {transfer, simp [left_distrib]},
-    right_distrib  := by {transfer, simp [left_distrib]} }
+  by refine {add := (+), mul := (*), ..}; {transfer, simp [mul_add, mul_comm]}
 
   instance : decidable_linear_order pos_num :=
   { lt              := (<),
@@ -381,8 +366,7 @@ namespace pos_num
   begin
     have := cmp_to_nat m n,
     cases cmp m n; simp at this ⊢; try {exact this};
-    { simp [show m ≠ n, from λ e, by rw e at this; exact lt_irrefl _ this],
-      exact dec_trivial }
+    { simp [show m ≠ n, from λ e, by rw e at this; exact lt_irrefl _ this] }
   end
 
   @[simp] theorem cast_lt [linear_ordered_semiring α] {m n : pos_num} : (m:α) < n ↔ m < n :=
@@ -484,8 +468,7 @@ namespace num
   begin
     have := cmp_to_nat m n,
     cases cmp m n; simp at this ⊢; try {exact this};
-    { simp [show m ≠ n, from λ e, by rw e at this; exact lt_irrefl _ this],
-      exact dec_trivial }
+    { simp [show m ≠ n, from λ e, by rw e at this; exact lt_irrefl _ this] }
   end
 
   @[simp] theorem cast_lt [linear_ordered_semiring α] {m n : num} : (m:α) < n ↔ m < n :=
@@ -598,10 +581,10 @@ namespace num
     { change ff = nat.bodd (nat.shiftr 1 (n + 1)),
       rw [add_comm, nat.shiftr_add], change nat.shiftr 1 1 with 0,
       rw nat.zero_shiftr; refl },
-    { change pos_num.test_bit a n = nat.bodd (nat.shiftr (nat.bit tt a) (n + 1)),
+    { change pos_num.test_bit m n = nat.bodd (nat.shiftr (nat.bit tt m) (n + 1)),
       rw [add_comm, nat.shiftr_add], unfold nat.shiftr,
       rw nat.div2_bit, apply IH },
-    { change pos_num.test_bit a n = nat.bodd (nat.shiftr (nat.bit ff a) (n + 1)),
+    { change pos_num.test_bit m n = nat.bodd (nat.shiftr (nat.bit ff m) (n + 1)),
       rw [add_comm, nat.shiftr_add], unfold nat.shiftr,
       rw nat.div2_bit, apply IH },
   end
@@ -641,7 +624,7 @@ namespace znum
 
   theorem zneg_pred (n : znum) : -n.pred = (-n).succ :=
   by rw [← zneg_zneg (succ (-n)), zneg_succ, zneg_zneg]
-  
+
   @[simp] theorem neg_of_int : ∀ n, ((-n : ℤ) : znum) = -n
   | (n+1:ℕ) := rfl
   | 0       := rfl
@@ -853,9 +836,21 @@ namespace znum
   `[repeat {rw ← to_int_inj <|> rw ← lt_to_int <|> rw ← le_to_int},
     repeat {rw cast_add <|> rw mul_to_int <|> rw cast_one <|> rw cast_zero}]
 
-  meta def transfer : tactic unit := `[intros, transfer_rw, try {simp}]
+  meta def transfer : tactic unit := `[intros, transfer_rw, try {simp [mul_comm, mul_left_comm]}]
 
-  instance : decidable_linear_ordered_comm_ring znum :=
+  instance : decidable_linear_order znum :=
+  { lt               := (<),
+    lt_iff_le_not_le := by {intros a b, transfer_rw, apply lt_iff_le_not_le},
+    le               := (≤),
+    le_refl          := by transfer,
+    le_trans         := by {intros a b c, transfer_rw, apply le_trans},
+    le_antisymm      := by {intros a b, transfer_rw, apply le_antisymm},
+    le_total         := by {intros a b, transfer_rw, apply le_total},
+    decidable_eq     := znum.decidable_eq,
+    decidable_le     := znum.decidable_le,
+    decidable_lt     := znum.decidable_lt }
+
+  instance : add_comm_group znum :=
   { add              := (+),
     add_assoc        := by transfer,
     zero             := 0,
@@ -863,30 +858,25 @@ namespace znum
     add_zero         := add_zero,
     add_comm         := by transfer,
     neg              := has_neg.neg,
-    add_left_neg     := by transfer,
-    mul              := (*),
+    add_left_neg     := by transfer }
+
+  instance : decidable_linear_ordered_comm_ring znum :=
+  { mul              := (*),
     mul_assoc        := by transfer,
     one              := 1,
     one_mul          := by transfer,
     mul_one          := by transfer,
-    left_distrib     := by {transfer, simp [left_distrib]},
-    right_distrib    := by {transfer, simp [left_distrib]},
+    left_distrib     := by {transfer, simp [mul_add]},
+    right_distrib    := by {transfer, simp [mul_add, mul_comm]},
     mul_comm         := by transfer,
-    lt               := (<),
-    lt_iff_le_not_le := by {intros a b, transfer_rw, apply lt_iff_le_not_le},
-    le               := (≤),
-    le_refl          := by transfer,
-    le_trans         := by {intros a b c, transfer_rw, apply le_trans},
-    le_antisymm      := by {intros a b, transfer_rw, apply le_antisymm},
-    le_total         := by {intros a b, transfer_rw, apply le_total},
+    zero_ne_one      := dec_trivial,
     add_le_add_left  := by {intros a b h c, revert h, transfer_rw, exact λ h, add_le_add_left h c},
     add_lt_add_left  := by {intros a b h c, revert h, transfer_rw, exact λ h, add_lt_add_left h c},
-    zero_ne_one      := dec_trivial,
-    mul_nonneg       := by {intros a b, transfer_rw, apply mul_nonneg},
     mul_pos          := by {intros a b, transfer_rw, apply mul_pos},
+    mul_nonneg       := by {intros x y,
+      change 0 ≤ x → 0 ≤ y → 0 ≤ x * y,
+      transfer_rw, apply mul_nonneg},
     zero_lt_one      := dec_trivial,
-    decidable_eq     := znum.decidable_eq,
-    decidable_le     := znum.decidable_le,
-    decidable_lt     := znum.decidable_lt }
+    ..znum.decidable_linear_order, ..znum.add_comm_group }
 
 end znum

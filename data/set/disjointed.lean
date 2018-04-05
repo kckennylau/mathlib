@@ -7,22 +7,26 @@ Disjointed sets
 -/
 import data.set.lattice data.nat.basic
 open set classical lattice
-local attribute [instance] decidable_inhabited prop_decidable
+local attribute [instance] prop_decidable
 
 universes u v w x
 variables {α : Type u} {β : Type v} {γ : Type w} {ι : Sort x}
   {s t u : set α}
 
+/-- A relation `p` holds pairwise if `p i j` for all `i ≠ j`. -/
 def pairwise {α : Type*} (p : α → α → Prop) := ∀i j, i ≠ j → p i j
 
 namespace set
 
+/-- If `f : ℕ → set α` is a sequence of sets, then `disjointed f` is
+  the sequence formed with each set subtracted from the later ones
+  in the sequence, to form a disjoint sequence. -/
 def disjointed (f : ℕ → set α) (n : ℕ) : set α := f n ∩ (⋂i<n, - f i)
 
 lemma disjoint_disjointed {f : ℕ → set α} : pairwise (disjoint on disjointed f) :=
 assume i j h,
 have ∀i j, i < j → disjointed f i ∩ disjointed f j = ∅,
-  from assume i j hij, eq_empty_of_forall_not_mem $ assume x h,
+  from assume i j hij, eq_empty_iff_forall_not_mem.2 $ assume x h,
   have x ∈ f i, from h.left.left,
   have x ∈ (⋂i<j, - f i), from h.right.right,
   have x ∉ f i, begin simp at this; exact this _ hij end,
@@ -49,7 +53,7 @@ begin
       { apply eq_univ_of_forall,
         simp [mem_Inter, nat.not_lt_zero] },
     simp [h, inter_univ] },
-  case nat.succ n ih {
+  case nat.succ : n ih {
     intro t,
     have h : (⨅i (H : i < n.succ), -f i) = (⨅i (H : i < n), -f i) ⊓ - f n,
       by simp [nat.lt_succ_iff_lt_or_eq, infi_or, infi_inf_eq, inf_comm],

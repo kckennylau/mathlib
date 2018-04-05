@@ -9,6 +9,7 @@ Classical versions are in the namespace "classical".
 Note: in the presence of automation, this whole file may be unnecessary. On the other hand,
 maybe it is useful for writing automation.
 -/
+import data.prod tactic.interactive
 
 /-
     miscellany
@@ -20,42 +21,21 @@ section miscellany
 
 variables {α : Type*} {β : Type*}
 
-theorem eq_iff_le_and_le [partial_order α] {a b : α} : a = b ↔ (a ≤ b ∧ b ≤ a) :=
-⟨assume eq, eq ▸ ⟨le_refl a, le_refl a⟩, assume ⟨ab, ba⟩, le_antisymm ab ba⟩
+def empty.elim {C : Sort*} : empty → C.
 
-@[simp] theorem prod.mk.inj_iff {a₁ a₂ : α} {b₁ b₂ : β} :
-  (a₁, b₁) = (a₂, b₂) ↔ (a₁ = a₂ ∧ b₁ = b₂) :=
-⟨prod.mk.inj, by cc⟩
+instance : subsingleton empty := ⟨λa, a.elim⟩
 
-@[simp] theorem prod.forall {p : α × β → Prop} :
-  (∀ x, p x) ↔ (∀ a b, p (a, b)) :=
-⟨assume h a b, h (a, b), assume h ⟨a, b⟩, h a b⟩
+instance : decidable_eq empty := λa, a.elim
 
-@[simp] theorem prod.exists {p : α × β → Prop} :
-  (∃ x, p x) ↔ (∃ a b, p (a, b)) :=
-⟨assume ⟨⟨a, b⟩, h⟩, ⟨a, b, h⟩, assume ⟨a, b, h⟩, ⟨⟨a, b⟩, h⟩⟩
+@[priority 0] instance decidable_eq_of_subsingleton
+  {α} [subsingleton α] : decidable_eq α
+| a b := is_true (subsingleton.elim a b)
 
-@[simp] theorem set_of_subset_set_of {p q : α → Prop} : {a | p a} ⊆ {a | q a} = (∀a, p a → q a) := rfl
-
-@[simp] theorem sigma.mk.inj_iff {β : α → Type*} {a₁ a₂ : α} {b₁ : β a₁} {b₂ : β a₂} :
-  sigma.mk a₁ b₁ = ⟨a₂, b₂⟩ ↔ (a₁ = a₂ ∧ b₁ == b₂) :=
-⟨sigma.mk.inj, λ ⟨h₁, h₂⟩, by congr; assumption⟩
-
-@[simp] theorem sigma.forall {β : α → Type*} {p : (Σ a, β a) → Prop} :
-  (∀ x, p x) ↔ (∀ a b, p ⟨a, b⟩) :=
-⟨assume h a b, h ⟨a, b⟩, assume h ⟨a, b⟩, h a b⟩
-
-@[simp] theorem sigma.exists {β : α → Type*} {p : (Σ a, β a) → Prop} :
-  (∃ x, p x) ↔ (∃ a b, p ⟨a, b⟩) :=
-⟨assume ⟨⟨a, b⟩, h⟩, ⟨a, b, h⟩, assume ⟨a, b, h⟩, ⟨⟨a, b⟩, h⟩⟩
-
-@[simp] theorem subtype.forall {β : α → Prop} {p : {a // β a} → Prop} :
-  (∀ x, p x) ↔ (∀ a b, p ⟨a, b⟩) :=
-⟨assume h a b, h ⟨a, b⟩, assume h ⟨a, b⟩, h a b⟩
-
-@[simp] theorem subtype.exists {β : α → Prop} {p : {a // β a} → Prop} :
-  (∃ x, p x) ↔ (∃ a b, p ⟨a, b⟩) :=
-⟨assume ⟨⟨a, b⟩, h⟩, ⟨a, b, h⟩, assume ⟨a, b, h⟩, ⟨⟨a, b⟩, h⟩⟩
+/- Add an instance to "undo" coercion transitivity into a chain of coercions, because
+   most simp lemmas are stated with respect to simple coercions and will not match when
+   part of a chain. -/
+@[simp] theorem coe_coe {α β γ} [has_coe α β] [has_coe_t β γ]
+  (a : α) : (a : γ) = (a : β) := rfl
 
 end miscellany
 
@@ -63,13 +43,17 @@ end miscellany
     propositional connectives
 -/
 
-@[simp] lemma false_neq_true : false ≠ true :=
-begin intro h, rw [h], trivial end
+@[simp] theorem false_ne_true : false ≠ true
+| h := h.symm ▸ trivial
 
 section propositional
 variables {a b c d : Prop}
 
 /- implies -/
+
+theorem iff_of_eq (e : a = b) : a ↔ b := e ▸ iff.rfl
+
+theorem iff_iff_eq : (a ↔ b) ↔ a = b := ⟨propext, iff_of_eq⟩
 
 @[simp] theorem imp_self : (a → a) ↔ true := iff_true_intro id
 
@@ -154,10 +138,10 @@ iff.intro (assume h, (h.right) (h.left)) (assume h, h.elim)
 theorem not_and_self_iff (a : Prop) : ¬ a ∧ a ↔ false :=
 iff.intro (assume ⟨hna, ha⟩, hna ha) false.elim
 
-lemma and_iff_left_of_imp {a b : Prop} (h : a → b) : (a ∧ b) ↔ a :=
+theorem and_iff_left_of_imp {a b : Prop} (h : a → b) : (a ∧ b) ↔ a :=
 iff.intro and.left (λ ha, ⟨ha, h ha⟩)
 
-lemma and_iff_right_of_imp {a b : Prop} (h : b → a) : (a ∧ b) ↔ b :=
+theorem and_iff_right_of_imp {a b : Prop} (h : b → a) : (a ∧ b) ↔ b :=
 iff.intro and.right (λ hb, ⟨h hb, hb⟩)
 
 /- or -/
@@ -229,6 +213,12 @@ if ha : a then or.inr (h ha) else or.inl ha
 theorem imp_iff_not_or [decidable a] : (a → b) ↔ (¬ a ∨ b) :=
 ⟨not_or_of_imp, or.neg_resolve_left⟩
 
+theorem imp_or_distrib [decidable a] : (a → b ∨ c) ↔ (a → b) ∨ (a → c) :=
+by simp [imp_iff_not_or, or.comm, or.left_comm]
+
+theorem imp_or_distrib' [decidable b] : (a → b ∨ c) ↔ (a → b) ∨ (a → c) :=
+by by_cases b; simp [h, or_iff_right_of_imp ((∘) false.elim)]
+
 theorem not_imp_of_and_not (h : a ∧ ¬ b) : ¬ (a → b) :=
 assume h₁, and.right h (h₁ (and.left h))
 
@@ -291,8 +281,12 @@ end propositional
 section equality
 variables {α : Sort*} {a b : α}
 
-@[simp] lemma heq_iff_eq : a == b ↔ a = b :=
+@[simp] theorem heq_iff_eq : a == b ↔ a = b :=
 ⟨eq_of_heq, heq_of_eq⟩
+
+theorem ne_of_mem_of_not_mem {α β} [has_mem α β] {s : β} {a b : α}
+  (h : a ∈ s) : b ∉ s → a ≠ b :=
+mt $ λ e, e ▸ h
 
 end equality
 
@@ -303,17 +297,13 @@ end equality
 section quantifiers
 variables {α : Sort*} {p q : α → Prop} {b : Prop}
 
+def Exists.imp := @exists_imp_exists
+
 theorem forall_swap {α β} {p : α → β → Prop} : (∀ x y, p x y) ↔ ∀ y x, p x y :=
 ⟨function.swap, function.swap⟩
 
 theorem exists_swap {α β} {p : α → β → Prop} : (∃ x y, p x y) ↔ ∃ y x, p x y :=
 ⟨λ ⟨x, y, h⟩, ⟨y, x, h⟩, λ ⟨y, x, h⟩, ⟨x, y, h⟩⟩
-
-theorem forall_of_forall (h : ∀ x, p x → q x) (h₁ : ∀ x, p x) : ∀ x, q x :=
-assume x, h x (h₁ x)
-
-theorem exists_of_exists (h : ∀ x, p x → q x) (h₁ : ∃ x, p x) : ∃ x, q x :=
-match h₁ with ⟨x, hpx⟩ := ⟨x, h x hpx⟩ end
 
 @[simp] theorem exists_imp_distrib : ((∃ x, p x) → b) ↔ ∀ x, p x → b :=
 ⟨λ h x hpx, h ⟨x, hpx⟩, λ h ⟨x, hpx⟩, h x hpx⟩
@@ -338,7 +328,7 @@ theorem not_forall {p : α → Prop}
 
 @[simp] theorem not_forall_not [decidable (∃ x, p x)] :
   (¬ ∀ x, ¬ p x) ↔ ∃ x, p x :=
-by have := decidable_of_iff (¬ ∃ x, p x) not_exists;
+by haveI := decidable_of_iff (¬ ∃ x, p x) not_exists;
    exact not_iff_comm.1 not_exists
 
 @[simp] theorem not_exists_not [∀ x, decidable (p x)] :
@@ -350,14 +340,15 @@ iff_true_intro (λ _, trivial)
 
 -- Unfortunately this causes simp to loop sometimes, so we
 -- add the 2 and 3 cases as simp lemmas instead
-theorem forall_true_iff' (h : b ↔ true) : (α → b) ↔ true :=
-iff_true_intro (λ _, of_iff_true h)
+theorem forall_true_iff' (h : ∀ a, p a ↔ true) : (∀ a, p a) ↔ true :=
+iff_true_intro (λ _, of_iff_true (h _))
 
-@[simp] theorem forall_2_true_iff {β} : (α → β → true) ↔ true :=
-forall_true_iff' forall_true_iff
+@[simp] theorem forall_2_true_iff {β : α → Sort*} : (∀ a, β a → true) ↔ true :=
+forall_true_iff' $ λ _, forall_true_iff
 
-@[simp] theorem forall_3_true_iff {β γ} : (α → β → γ → true) ↔ true :=
-forall_true_iff' forall_2_true_iff
+@[simp] theorem forall_3_true_iff {β : α → Sort*} {γ : Π a, β a → Sort*} :
+  (∀ a (b : β a), γ a b → true) ↔ true :=
+forall_true_iff' $ λ _, forall_2_true_iff
 
 @[simp] theorem forall_const (α : Sort*) [inhabited α] : (α → b) ↔ b :=
 ⟨λ h, h (arbitrary α), λ hb x, hb⟩
@@ -378,7 +369,7 @@ theorem exists_or_distrib : (∃ x, p x ∨ q x) ↔ (∃ x, p x) ∨ (∃ x, q 
 
 @[simp] theorem exists_and_distrib_right {q : Prop} {p : α → Prop} :
   (∃x, p x ∧ q) ↔ (∃x, p x) ∧ q :=
-by simp
+by simp [and_comm]
 
 @[simp] theorem forall_eq {a' : α} : (∀a, a = a' → p a) ↔ p a' :=
 ⟨λ h, h a' rfl, λ h a e, e.symm ▸ h⟩
@@ -411,6 +402,12 @@ theorem forall_or_distrib_left {q : Prop} {p : α → Prop} [decidable q] :
 
 @[simp] theorem exists_false : ¬ (∃a:α, false) := assume ⟨a, h⟩, h
 
+theorem Exists.fst {p : b → Prop} : Exists p → b
+| ⟨h, _⟩ := h
+
+theorem Exists.snd {p : b → Prop} : ∀ h : Exists p, p h.fst
+| ⟨_, h⟩ := h
+
 end quantifiers
 
 /- classical versions -/
@@ -420,17 +417,29 @@ variables {α : Sort*} {p : α → Prop}
 
 local attribute [instance] prop_decidable
 
-theorem not_forall : (¬ ∀ x, p x) ↔ (∃ x, ¬ p x) := not_forall
+protected theorem not_forall : (¬ ∀ x, p x) ↔ (∃ x, ¬ p x) := not_forall
 
-theorem forall_or_distrib_left {q : Prop} {p : α → Prop} :
+protected theorem forall_or_distrib_left {q : Prop} {p : α → Prop} :
   (∀x, q ∨ p x) ↔ q ∨ (∀x, p x) :=
 forall_or_distrib_left
 
-lemma cases {p : Prop → Prop} (h1 : p true) (h2 : p false) : ∀a, p a :=
+theorem cases {p : Prop → Prop} (h1 : p true) (h2 : p false) : ∀a, p a :=
 assume a, cases_on a h1 h2
 
-lemma or_not {p : Prop} : p ∨ ¬ p :=
+theorem or_not {p : Prop} : p ∨ ¬ p :=
 by_cases or.inl or.inr
+
+protected theorem or_iff_not_imp_left {p q : Prop} : p ∨ q ↔ (¬ p → q) :=
+or_iff_not_imp_left
+
+protected theorem or_iff_not_imp_right {p q : Prop} : q ∨ p ↔ (¬ p → q) :=
+or_iff_not_imp_right
+
+/- use shortened names to avoid conflict when classical namespace is open -/
+noncomputable theorem dec (p : Prop) : decidable p := by apply_instance
+noncomputable theorem dec_pred (p : α → Prop) : decidable_pred p := by apply_instance
+noncomputable theorem dec_rel (p : α → α → Prop) : decidable_rel p := by apply_instance
+noncomputable theorem dec_eq (α : Sort*) : decidable_eq α := by apply_instance
 
 end classical
 
@@ -518,3 +527,63 @@ theorem not_ball {α : Sort*} {p : α → Prop} {P : Π (x : α), p x → Prop} 
   (¬ ∀ x h, P x h) ↔ (∃ x h, ¬ P x h) := _root_.not_ball
 
 end classical
+
+section nonempty
+universes u v w
+variables {α : Type u} {β : Type v} {γ : α → Type w}
+
+attribute [simp] nonempty_of_inhabited
+
+@[simp] lemma nonempty_Prop {p : Prop} : nonempty p ↔ p :=
+iff.intro (assume ⟨h⟩, h) (assume h, ⟨h⟩)
+
+@[simp] lemma nonempty_sigma : nonempty (Σa:α, γ a) ↔ (∃a:α, nonempty (γ a)) :=
+iff.intro (assume ⟨⟨a, c⟩⟩, ⟨a, ⟨c⟩⟩) (assume ⟨a, ⟨c⟩⟩, ⟨⟨a, c⟩⟩)
+
+@[simp] lemma nonempty_subtype {α : Sort u} {p : α → Prop} : nonempty (subtype p) ↔ (∃a:α, p a) :=
+iff.intro (assume ⟨⟨a, h⟩⟩, ⟨a, h⟩) (assume ⟨a, h⟩, ⟨⟨a, h⟩⟩)
+
+@[simp] lemma nonempty_prod : nonempty (α × β) ↔ (nonempty α ∧ nonempty β) :=
+iff.intro (assume ⟨⟨a, b⟩⟩, ⟨⟨a⟩, ⟨b⟩⟩) (assume ⟨⟨a⟩, ⟨b⟩⟩, ⟨⟨a, b⟩⟩)
+
+@[simp] lemma nonempty_pprod {α : Sort u} {β : Sort v} :
+  nonempty (pprod α β) ↔ (nonempty α ∧ nonempty β) :=
+iff.intro (assume ⟨⟨a, b⟩⟩, ⟨⟨a⟩, ⟨b⟩⟩) (assume ⟨⟨a⟩, ⟨b⟩⟩, ⟨⟨a, b⟩⟩)
+
+@[simp] lemma nonempty_sum : nonempty (α ⊕ β) ↔ (nonempty α ∨ nonempty β) :=
+iff.intro
+  (assume ⟨h⟩, match h with sum.inl a := or.inl ⟨a⟩ | sum.inr b := or.inr ⟨b⟩ end)
+  (assume h, match h with or.inl ⟨a⟩ := ⟨sum.inl a⟩ | or.inr ⟨b⟩ := ⟨sum.inr b⟩ end)
+
+@[simp] lemma nonempty_psum {α : Sort u} {β : Sort v} :
+  nonempty (psum α β) ↔ (nonempty α ∨ nonempty β) :=
+iff.intro
+  (assume ⟨h⟩, match h with psum.inl a := or.inl ⟨a⟩ | psum.inr b := or.inr ⟨b⟩ end)
+  (assume h, match h with or.inl ⟨a⟩ := ⟨psum.inl a⟩ | or.inr ⟨b⟩ := ⟨psum.inr b⟩ end)
+
+@[simp] lemma nonempty_psigma {α : Sort u} {β : α → Sort v} :
+  nonempty (psigma β) ↔ (∃a:α, nonempty (β a)) :=
+iff.intro (assume ⟨⟨a, c⟩⟩, ⟨a, ⟨c⟩⟩) (assume ⟨a, ⟨c⟩⟩, ⟨⟨a, c⟩⟩)
+
+@[simp] lemma nonempty_empty : ¬ nonempty empty :=
+assume ⟨h⟩, h.elim
+
+@[simp] lemma nonempty_ulift : nonempty (ulift α) ↔ nonempty α :=
+iff.intro (assume ⟨⟨a⟩⟩, ⟨a⟩) (assume ⟨a⟩, ⟨⟨a⟩⟩)
+
+@[simp] lemma nonempty_plift {α : Sort u} : nonempty (plift α) ↔ nonempty α :=
+iff.intro (assume ⟨⟨a⟩⟩, ⟨a⟩) (assume ⟨a⟩, ⟨⟨a⟩⟩)
+
+@[simp] lemma nonempty.forall {α : Sort u} {p : nonempty α → Prop} :
+  (∀h:nonempty α, p h) ↔ (∀a, p ⟨a⟩) :=
+iff.intro (assume h a, h _) (assume h ⟨a⟩, h _)
+
+@[simp] lemma nonempty.exists {α : Sort u} {p : nonempty α → Prop} :
+  (∃h:nonempty α, p h) ↔ (∃a, p ⟨a⟩) :=
+iff.intro (assume ⟨⟨a⟩, h⟩, ⟨a, h⟩) (assume ⟨a, h⟩, ⟨⟨a⟩, h⟩)
+
+lemma classical.nonempty_pi {α : Sort u} {β : α → Sort v} :
+  nonempty (Πa:α, β a) ↔ (∀a:α, nonempty (β a)) :=
+iff.intro (assume ⟨f⟩ a, ⟨f a⟩) (assume f, ⟨assume a, classical.choice $ f a⟩)
+
+end nonempty

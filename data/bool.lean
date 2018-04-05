@@ -5,14 +5,10 @@ Author: Leonardo de Moura, Jeremy Avigad
 -/
 
 namespace bool
-set_option pp.universes true
-
 
 @[simp] theorem coe_sort_tt : coe_sort.{1 1} tt = true := eq_true_intro rfl
 
 @[simp] theorem coe_sort_ff : coe_sort.{1 1} ff = false := eq_false_intro ff_ne_tt
-
-attribute [simp] to_bool_iff
 
 @[simp] theorem to_bool_true {h} : @to_bool true h = tt :=
 show _ = to_bool true, by congr
@@ -20,8 +16,13 @@ show _ = to_bool true, by congr
 @[simp] theorem to_bool_false {h} : @to_bool false h = ff :=
 show _ = to_bool false, by congr
 
-@[simp] theorem to_bool_bool (b : bool) : to_bool b = b :=
-by cases b; simp
+@[simp] theorem to_bool_coe (b:bool) {h} : @to_bool b h = b :=
+(show _ = to_bool b, by congr).trans (by cases b; refl)
+
+@[simp] theorem coe_to_bool (p : Prop) [decidable p] : to_bool p ↔ p := to_bool_iff _
+
+@[simp] lemma of_to_bool_iff {p : Prop} [decidable p] : to_bool p ↔ p :=
+⟨of_to_bool_true, _root_.to_bool_true⟩
 
 theorem dichotomy (b : bool) : b = ff ∨ b = tt :=
 by cases b; simp
@@ -64,7 +65,7 @@ by cases a; simp
 by cases a; simp
 
 theorem band_elim_left {a b : bool} (H : a && b = tt) : a = tt :=
-begin cases a, simp at H, simp [H] end
+begin cases a; simp at H, simp [H] end
 
 theorem band_intro {a b : bool} (H₁ : a = tt) (H₂ : b = tt) : a && b = tt :=
 begin cases a, simp [H₁, H₂], simp [H₂] end

@@ -6,15 +6,20 @@ Author: Leonardo de Moura, Mario Carneiro
 Type class for encodable Types.
 Note that every encodable Type is countable.
 -/
-import data.finset data.list data.list.perm data.list.sort
+import data.fintype data.list data.list.perm data.list.sort
        data.equiv data.nat.basic logic.function
 open option list nat function
 
+/-- An encodable type is a "constructively countable" type. This is where
+  we have an explicit injection `encode : α → nat` and a partial inverse
+  `decode : nat → option α`. This makes the range of `encode` decidable,
+  although it is not decidable if `α` is finite or not. -/
 class encodable (α : Type*) :=
 (encode : α → nat) (decode : nat → option α) (encodek : ∀ a, decode (encode a) = some a)
 
 section encodable
 variables {α : Type*} {β : Type*}
+universe u
 open encodable
 
 section
@@ -23,8 +28,18 @@ variables [encodable α]
 theorem encode_injective : function.injective (@encode α _)
 | x y e := option.some.inj $ by rw [← encodek, e, encodek]
 
-instance decidable_eq_of_encodable : decidable_eq α
-| a b := decidable_of_iff _ encode_injective.eq_iff 
+/- lower priority of instance below because we don't want to use encodability
+   to prove that e.g. equality of nat is decidable. Example of a problem:
+
+   lemma H (e : ℕ) : finset.range (nat.succ e) = insert e (finset.range e) :=
+   begin
+   exact finset.range_succ
+   end
+
+  fails with this priority not set to zero
+-/
+@[priority 0] instance decidable_eq_of_encodable : decidable_eq α
+| a b := decidable_of_iff _ encode_injective.eq_iff
 end
 
 def encodable_of_left_injection [h₁ : encodable α]
@@ -43,8 +58,8 @@ instance encodable_nat : encodable nat :=
 instance encodable_empty : encodable empty :=
 ⟨λ a, a.rec _, λ n, none, λ a, a.rec _⟩
 
-instance encodable_unit : encodable unit :=
-⟨λ_, 0, λn, if n = 0 then some () else none, λ⟨⟩, by simp⟩
+instance encodable_unit : encodable punit.{u+1} :=
+⟨λ_, 0, λn, if n = 0 then some punit.star else none, λ⟨⟩, by simp⟩
 
 instance encodable_option {α : Type*} [h : encodable α] : encodable (option α) :=
 ⟨λ o, match o with
@@ -79,6 +94,9 @@ instance encodable_sum : encodable (sum α β) :=
      rw [bodd_bit, div2_bit, decode_sum, encodek]; refl⟩
 end sum
 
+instance encodable_bool: encodable bool :=
+encodable_of_equiv (unit ⊕ unit) equiv.bool_equiv_unit_sum_unit
+
 section sigma
 variables {γ : α → Type*} [encodable α] [∀ a, encodable (γ a)]
 
@@ -109,9 +127,7 @@ private def decode_list : nat → option (list α)
 | (succ v) := match unpair v, unpair_le v with
   | (v₂, v₁), h :=
     have v₂ < succ v, from lt_succ_of_le h,
-    do a ← decode α v₁,
-       l ← decode_list v₂,
-       some (a :: l)
+    (::) <$> decode α v₁ <*> decode_list v₂
   end
 
 instance encodable_list : encodable (list α) :=
@@ -149,32 +165,31 @@ eq_of_sorted_of_perm enle.trans enle.antisymm
   (sorted_insertion_sort _ enle.total enle.trans _)
   (sorted_insertion_sort _ enle.total enle.trans _)
 
-private def encode_finset (s : finset α) : nat :=
-quot.lift_on s
-  (λ l, encode (ensort l.val))
-  (λ l₁ l₂ p,
-    have l₁.val ~ l₂.val,               from p,
-    have ensort l₁.val = ensort l₂.val, from sorted_eq_of_perm this,
-    by dsimp; rw this)
+private def encode_multiset (s : multiset α) : nat :=
+encode $ quot.lift_on s
+  (λ l, ensort l)
+  (λ l₁ l₂ p, sorted_eq_of_perm p)
 
-private def decode_finset (n : nat) : option (finset α) :=
-match decode (list α) n with
-| some l₁ := some (finset.to_finset l₁)
-| none    := none
-end
+private def decode_multiset (n : nat) : option (multiset α) :=
+coe <$> decode (list α) n
 
-instance encodable_finset : encodable (finset α) :=
-⟨encode_finset, decode_finset, λ s, quot.induction_on s $ λ⟨l, nd⟩, begin
-  suffices : finset.to_finset (ensort l) = ⟦⟨l, nd⟩⟧,
-  { simp [encode_finset], simpa [decode_finset, encodek] },
-  apply quot.sound,
-  show erase_dup (ensort l) ~ l,
-  rw erase_dup_eq_self.2,
-  { apply perm_insertion_sort },
-  { exact (perm_nodup (perm_insertion_sort _ _)).2 nd }
-end⟩
+instance encodable_multiset : encodable (multiset α) :=
+⟨encode_multiset, decode_multiset, λ s, quot.induction_on s $ λ l,
+show coe <$> decode (list α) (encode (ensort l)) = some ↑l,
+by rw [encodek, ← show (ensort l:multiset α) = l,
+       from quotient.sound (perm_insertion_sort _ _)]; refl⟩
 
 end finset
+
+def encodable_of_list [decidable_eq α] (l : list α) (H : ∀ x, x ∈ l) : encodable α :=
+⟨λ a, index_of a l, l.nth, λ a, index_of_nth (H _)⟩
+
+def trunc_encodable_of_fintype (α : Type*) [decidable_eq α] [fintype α] : trunc (encodable α) :=
+@@quot.rec_on_subsingleton _
+  (λ s : multiset α, (∀ x:α, x ∈ s) → trunc (encodable α)) _
+  finset.univ.1
+  (λ l H, trunc.mk $ encodable_of_list l H)
+  finset.mem_univ
 
 section subtype
 open subtype decidable
@@ -203,9 +218,18 @@ instance bool.encodable : encodable bool := encodable_of_equiv _ equiv.bool_equi
 instance int.encodable : encodable ℤ :=
 encodable_of_equiv _ equiv.int_equiv_nat
 
+instance encodable_finset [encodable α] : encodable (finset α) :=
+encodable_of_equiv {s : multiset α // s.nodup}
+  ⟨λ ⟨a, b⟩, ⟨a, b⟩, λ⟨a, b⟩, ⟨a, b⟩, λ ⟨a, b⟩, rfl, λ⟨a, b⟩, rfl⟩
+
+instance encodable_ulift [encodable α] : encodable (ulift α) :=
+encodable_of_equiv _ equiv.ulift
+
+instance encodable_plift [encodable α] : encodable (plift α) :=
+encodable_of_equiv _ equiv.plift
 
 noncomputable def encodable_of_inj [encodable β] (f : α → β) (hf : injective f) : encodable α :=
-encodable_of_left_injection f (partial_inv f) (partial_inv_eq hf)
+encodable_of_left_injection f (partial_inv f) (λ x, (partial_inv_of_injective hf _ _).2 rfl)
 
 end encodable
 
@@ -237,7 +261,6 @@ have ∃ n, good p (decode α n), from
 let ⟨w, pw⟩ := h in ⟨encode w, by simp [good, encodek, pw]⟩,
 match _, nat.find_spec this : ∀ o, good p o → {a // p a} with
 | some a, h := ⟨a, h⟩
-| none,   h := h.elim
 end
 
 def choose (h : ∃ x, p x) : α := (choose_x h).1
