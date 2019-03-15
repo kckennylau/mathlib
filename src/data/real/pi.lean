@@ -49,6 +49,13 @@ begin
     simp [sqrt_eq_zero_of_nonpos, hy, h1, h2] }
 end
 
+lemma le_sqrt_of_sqr_le {x y : ℝ} (h : x ^ 2 ≤ y) : x ≤ sqrt y :=
+begin
+  cases lt_or_ge 0 x with hx hx,
+  { rwa [le_sqrt' hx] },
+  { exact le_trans hx (sqrt_nonneg y) }
+end
+
 lemma div_lt_self {x y : ℝ} (hx : x > 0) (hy : y > 1) : x / y < x :=
 by simpa using div_lt_div' (le_refl x) hy hx zero_lt_one
 
@@ -112,6 +119,19 @@ lemma sqrt_two_add_series_lt_two : ∀(n : ℕ), sqrt_two_add_series 0 n < 2
     rw [sqrt_two_add_series, sqrt_two_add_series],
     apply sqrt_le_sqrt, apply add_le_add_left, apply sqrt_two_add_series_monotone_left
   end
+
+@[simp] lemma sqrt_two_add_series_step_up {x : ℝ} {n : ℕ} (y : ℝ) (h : 2 + x ≤ y ^ 2)
+  (h2 : 0 ≤ y) : sqrt_two_add_series x (n+1) ≤ sqrt_two_add_series y n :=
+begin
+  rw [sqrt_two_add_series_succ], apply sqrt_two_add_series_monotone_left,
+  rw [sqrt_le_left], exact h, exact h2
+end
+
+@[simp] lemma sqrt_two_add_series_step_down {x : ℝ} {n : ℕ} (y : ℝ) (h : y ^ 2 ≤ 2 + x) :
+  sqrt_two_add_series x (n+1) ≥ sqrt_two_add_series y n :=
+begin
+  rw [sqrt_two_add_series_succ], apply sqrt_two_add_series_monotone_left, exact le_sqrt_of_sqr_le h
+end
 
 @[simp] lemma cos_pi_over_two_pow : ∀(n : ℕ), cos (pi / 2 ^ (n+1)) = sqrt_two_add_series 0 n / 2
 | 0     := by simp
@@ -260,31 +280,34 @@ lemma pi_gt_three : pi > 3 :=
 begin
   refine lt_of_le_of_lt _ (pi_gt_sqrt_two_add_series 1),
   rw [sqrt_two_add_series_one, mul_comm],
-  apply le_mul_of_div_le, norm_num,
-  rw [le_sqrt', le_sub_iff_add_le, ←le_sub_iff_add_le', sqrt_le_left],
+  apply le_mul_of_div_le, norm_num, apply le_sqrt_of_sqr_le,
+  rw [le_sub_iff_add_le, ←le_sub_iff_add_le', sqrt_le_left],
   all_goals {norm_num}
 end
 
 lemma pi_gt_314 : pi > 3.14 :=
 begin
-  refine lt_of_le_of_lt _ (pi_gt_sqrt_two_add_series 4),
-  rw [sqrt_two_add_series, sqrt_two_add_series_three, mul_comm],
-  apply le_mul_of_div_le, norm_num,
-  rw [le_sqrt', le_sub, sqrt_le_left],
-  repeat {rw [←le_sub_iff_add_le', sqrt_le_left]},
-  all_goals {sorry}
+  refine lt_of_le_of_lt _ (pi_gt_sqrt_two_add_series 4), rw [mul_comm],
+  apply le_mul_of_div_le, norm_num, apply le_sqrt_of_sqr_le, rw [le_sub],
+  refine le_trans (sqrt_two_add_series_step_up (577/408) (by norm_num) (by norm_num)) _,
+  refine le_trans (sqrt_two_add_series_step_up (619/335) (by norm_num) (by norm_num)) _,
+  refine le_trans (sqrt_two_add_series_step_up (2144/1093) (by norm_num) (by norm_num)) _,
+  refine le_trans (sqrt_two_add_series_step_up (2687/1350) (by norm_num) (by norm_num)) _,
+  norm_num
 end
 
 lemma pi_lt_315 : pi < 3.15 :=
 begin
   refine lt_of_lt_of_le (pi_lt_sqrt_two_add_series 4) _,
-  apply add_le_of_le_sub_right,
-  rw [sqrt_two_add_series, sqrt_two_add_series_three, mul_comm],
-  apply mul_le_of_le_div, apply pow_pos, norm_num,
-  rw [sqrt_le_left, sub_le, le_sqrt'],
-  repeat {rw [←sub_le_iff_le_add', le_sqrt']},
-  all_goals {sorry}
+  apply add_le_of_le_sub_right, rw [mul_comm], apply mul_le_of_le_div, apply pow_pos, norm_num,
+  rw [sqrt_le_left, sub_le], swap, norm_num,
+  refine le_trans _ (sqrt_two_add_series_step_down (41/29) (by norm_num)),
+  refine le_trans _ (sqrt_two_add_series_step_down (194/105) (by norm_num)),
+  refine le_trans _ (sqrt_two_add_series_step_down (13513/6889) (by norm_num)),
+  refine le_trans _ (sqrt_two_add_series_step_down (2271/1141) (by norm_num)),
+  norm_num
 end
+
 
 end real
 
