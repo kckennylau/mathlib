@@ -301,12 +301,44 @@ begin
   refine lt_of_lt_of_le (pi_lt_sqrt_two_add_series 4) _,
   apply add_le_of_le_sub_right, rw [mul_comm], apply mul_le_of_le_div, apply pow_pos, norm_num,
   rw [sqrt_le_left, sub_le], swap, norm_num,
-  refine le_trans _ (sqrt_two_add_series_step_down (41/29) (by norm_num)),
-  refine le_trans _ (sqrt_two_add_series_step_down (194/105) (by norm_num)),
-  refine le_trans _ (sqrt_two_add_series_step_down (3211/1637) (by norm_num)),
+  refine le_trans _ (sqrt_two_add_series_step_down (140/99) (by norm_num)),
+  refine le_trans _ (sqrt_two_add_series_step_down (279/151) (by norm_num)),
+  refine le_trans _ (sqrt_two_add_series_step_down (51/26) (by norm_num)),
   refine le_trans _ (sqrt_two_add_series_step_down (412/207) (by norm_num)),
   norm_num
 end
+
+-- the following lemma takes about 9 seconds
+-- lemma pi_gt_31415 : pi > 3.1415 :=
+-- begin
+--   refine lt_of_le_of_lt _ (pi_gt_sqrt_two_add_series 6), rw [mul_comm],
+--   apply le_mul_of_div_le, norm_num, apply le_sqrt_of_sqr_le, rw [le_sub],
+--   refine le_trans (sqrt_two_add_series_step_up (11482/8119) (by norm_num) (by norm_num)) _,
+--   refine le_trans (sqrt_two_add_series_step_up (5401/2923) (by norm_num) (by norm_num)) _,
+--   refine le_trans (sqrt_two_add_series_step_up (2348/1197) (by norm_num) (by norm_num)) _,
+--   refine le_trans (sqrt_two_add_series_step_up (11367/5711) (by norm_num) (by norm_num)) _,
+--   refine le_trans (sqrt_two_add_series_step_up (25705/12868) (by norm_num) (by norm_num)) _,
+--   refine le_trans (sqrt_two_add_series_step_up (23235/11621) (by norm_num) (by norm_num)) _,
+--   norm_num
+-- end
+
+-- the following lemma takes about 14 seconds
+-- lemma pi_lt_31416 : pi < 3.1416 :=
+-- begin
+--   refine lt_of_lt_of_le (pi_lt_sqrt_two_add_series 9) _,
+--   apply add_le_of_le_sub_right, rw [mul_comm], apply mul_le_of_le_div, apply pow_pos, norm_num,
+--   rw [sqrt_le_left, sub_le], swap, norm_num,
+--   refine le_trans _ (sqrt_two_add_series_step_down (4756/3363) (by norm_num)),
+--   refine le_trans _ (sqrt_two_add_series_step_down (101211/54775) (by norm_num)),
+--   refine le_trans _ (sqrt_two_add_series_step_down (505534/257719) (by norm_num)),
+--   refine le_trans _ (sqrt_two_add_series_step_down (83289/41846) (by norm_num)),
+--   refine le_trans _ (sqrt_two_add_series_step_down (411278/205887) (by norm_num)),
+--   refine le_trans _ (sqrt_two_add_series_step_down (438142/219137) (by norm_num)),
+--   refine le_trans _ (sqrt_two_add_series_step_down (451504/225769) (by norm_num)),
+--   refine le_trans _ (sqrt_two_add_series_step_down (265603/132804) (by norm_num)),
+--   refine le_trans _ (sqrt_two_add_series_step_down (849938/424971) (by norm_num)),
+--   norm_num
+-- end
 
 
 end real
@@ -330,43 +362,3 @@ end real
 
 -- lemma one_add_neg_div {x y : ℝ} (h : y ≠ 0) : 1 + -(x / y) = (y - x) / y :=
 -- by rw [←div_self h, ← sub_eq_add_neg, div_sub_div_same]
-
-
-
-
--- @[simp] noncomputable def sqrt_two_add_series : ℕ → ℝ
--- | 0     := -1
--- | 1     := 0
--- | (n+2) := sqrt(1/2 + sqrt_two_add_series (n+1) / 2)
-
--- lemma sqrt_two_add_series_zero_nonneg : ∀{n : ℕ} (h : n > 0), sqrt_two_add_series n ≥ 0
--- | 1     h := le_refl 0
--- | (n+2) h := sqrt_nonneg _
-
--- lemma cos_pi_over_two_pow : ∀(n : ℕ), cos (pi / 2 ^ n) = sqrt_two_add_series n
--- | 0     := by simp
--- | 1     := by simp
--- | (n+2) :=
---   begin
---     symmetry,
---     rw [sqrt_two_add_series, sqrt_eq_iff_sqr_eq, cos_square, ←mul_div_assoc,
---       nat.add_succ, pow_succ, mul_div_mul_left, cos_pi_over_two_pow],
---     apply pow_ne_zero, norm_num, norm_num,
---     apply add_nonneg, norm_num, apply div_nonneg, apply sqrt_two_add_series_zero_nonneg,
---     apply nat.succ_pos, norm_num,
---     apply le_of_lt, apply cos_pos_of_neg_pi_div_two_lt_of_lt_pi_div_two,
---     { transitivity (0 : ℝ), rw neg_lt_zero, apply pi_div_two_pos,
---       apply div_pos pi_pos, apply pow_pos, norm_num },
---     apply div_lt_div' (le_refl pi) _ pi_pos _,
---     refine lt_of_le_of_lt (le_of_eq (pow_one _).symm) _,
---     apply pow_lt_pow, norm_num, apply nat.succ_lt_succ, apply nat.succ_pos, norm_num
---   end
-
--- lemma half_sqrt_half : sqrt (1 / 2) / 2 = sqrt (1 / 8) :=
--- begin
---   have h1 : 2 * sqrt 2 ≠ 0, norm_num,
---   have h2 : sqrt 8 ≠ 0, norm_num,
---   have h3 : sqrt 4 = 2, rw [sqrt_eq_iff_sqr_eq]; norm_num,
---   simp [div_eq_mul_inv, (mul_inv' _ _).symm, division_ring.inv_inj, h1, h2],
---   transitivity sqrt 4 * sqrt 2, rw [h3], rw [←sqrt_mul]; norm_num
--- end
