@@ -20,6 +20,12 @@ end
 namespace real
 variable (x : ℝ)
 
+lemma sqrt_le_sqrt {x y : ℝ} (h : x ≤ y) : sqrt x ≤ sqrt y :=
+begin
+  rw [mul_self_le_mul_self_iff (sqrt_nonneg _) (sqrt_nonneg _), (sqrt_prop _).2, (sqrt_prop _).2],
+  exact max_le_max (le_refl _) h
+end
+
 lemma sqrt_le_left {x y : ℝ} (hy : 0 ≤ y) : sqrt x ≤ y ↔ x ≤ y ^ 2 :=
 begin
   rw [mul_self_le_mul_self_iff (sqrt_nonneg _) hy, pow_two],
@@ -55,38 +61,34 @@ by simp [cos_two_mul, div_add_div_same, mul_div_cancel_left, two_ne_zero, -one_d
 lemma sin_square : sin x ^ 2 = 1 - cos x ^ 2 :=
 by { rw [←sin_pow_two_add_cos_pow_two x], simp }
 
-/- the series sqrt(2+sqrt(2+ ... ))-/
-noncomputable def sqrt_two_add_series : ℕ → ℝ
-| 0     := 0
+/-- the series `sqrt(2 + sqrt(2 + ... ))`, starting with x.
+  It has defining equation `cos (pi / 2 ^ (n+1)) = sqrt_two_add_series 0 n / 2` -/
+noncomputable def sqrt_two_add_series (x : ℝ) : ℕ → ℝ
+| 0     := x
 | (n+1) := sqrt (2 + sqrt_two_add_series n)
 
-@[simp] lemma sqrt_two_add_series_zero : sqrt_two_add_series 0 = 0 :=
+@[simp] lemma sqrt_two_add_series_zero : sqrt_two_add_series x 0 = x :=
 by simp only [sqrt_two_add_series]
 
-@[simp] lemma sqrt_two_add_series_one : sqrt_two_add_series 1 = sqrt 2 :=
+@[simp] lemma sqrt_two_add_series_one : sqrt_two_add_series 0 1 = sqrt 2 :=
 by simp [sqrt_two_add_series]
 
-@[simp] lemma sqrt_two_add_series_two : sqrt_two_add_series 2 = sqrt (2 + sqrt 2) :=
+@[simp] lemma sqrt_two_add_series_two : sqrt_two_add_series 0 2 = sqrt (2 + sqrt 2) :=
 by simp only [sqrt_two_add_series, sqrt_two_add_series_one]
 
-lemma half_sqrt_half : sqrt (1 / 2) / 2 = sqrt (1 / 8) :=
-begin
-  have h1 : 2 * sqrt 2 ≠ 0, norm_num,
-  have h2 : sqrt 8 ≠ 0, norm_num,
-  have h3 : sqrt 4 = 2, rw [sqrt_eq_iff_sqr_eq]; norm_num,
-  simp [div_eq_mul_inv, (mul_inv' _ _).symm, division_ring.inv_inj, h1, h2],
-  transitivity sqrt 4 * sqrt 2, rw [h3], rw [←sqrt_mul]; norm_num
-end
-
 @[simp] lemma sqrt_two_add_series_three :
-  sqrt_two_add_series 3 = sqrt (2 + sqrt (2 + sqrt 2)) :=
+  sqrt_two_add_series 0 3 = sqrt (2 + sqrt (2 + sqrt 2)) :=
 by simp only [sqrt_two_add_series, sqrt_two_add_series_two]
 
-lemma sqrt_two_add_series_nonneg : ∀(n : ℕ), sqrt_two_add_series n ≥ 0
+lemma sqrt_two_add_series_zero_nonneg : ∀(n : ℕ), sqrt_two_add_series 0 n ≥ 0
 | 0     := le_refl 0
 | (n+1) := sqrt_nonneg _
 
-lemma sqrt_two_add_series_lt_two : ∀(n : ℕ), sqrt_two_add_series n < 2
+lemma sqrt_two_add_series_nonneg {x : ℝ} (h : 0 ≤ x) : ∀(n : ℕ), sqrt_two_add_series x n ≥ 0
+| 0     := h
+| (n+1) := sqrt_nonneg _
+
+lemma sqrt_two_add_series_lt_two : ∀(n : ℕ), sqrt_two_add_series 0 n < 2
 | 0     := by norm_num
 | (n+1) :=
   begin
@@ -94,10 +96,24 @@ lemma sqrt_two_add_series_lt_two : ∀(n : ℕ), sqrt_two_add_series n < 2
     rw [sqrt_two_add_series, sqrt_lt],
     apply add_lt_of_lt_sub_left,
     apply lt_of_lt_of_le (sqrt_two_add_series_lt_two n),
-    norm_num, apply add_nonneg, norm_num, apply sqrt_two_add_series_nonneg, norm_num
+    norm_num, apply add_nonneg, norm_num, apply sqrt_two_add_series_zero_nonneg, norm_num
   end
 
-@[simp] lemma cos_pi_over_two_pow : ∀(n : ℕ), cos (pi / 2 ^ (n+1)) = sqrt_two_add_series n / 2
+@[simp] lemma sqrt_two_add_series_succ (x : ℝ) :
+  ∀(n : ℕ), sqrt_two_add_series x (n+1) = sqrt_two_add_series (sqrt (2 + x)) n
+| 0     := rfl
+| (n+1) := by rw [sqrt_two_add_series, sqrt_two_add_series_succ, sqrt_two_add_series]
+
+@[simp] lemma sqrt_two_add_series_monotone_left {x y : ℝ} (h : x ≤ y) :
+  ∀(n : ℕ), sqrt_two_add_series x n ≤ sqrt_two_add_series y n
+| 0     := h
+| (n+1) :=
+  begin
+    rw [sqrt_two_add_series, sqrt_two_add_series],
+    apply sqrt_le_sqrt, apply add_le_add_left, apply sqrt_two_add_series_monotone_left
+  end
+
+@[simp] lemma cos_pi_over_two_pow : ∀(n : ℕ), cos (pi / 2 ^ (n+1)) = sqrt_two_add_series 0 n / 2
 | 0     := by simp
 | (n+1) :=
   begin
@@ -109,7 +125,7 @@ lemma sqrt_two_add_series_lt_two : ∀(n : ℕ), sqrt_two_add_series n < 2
         mul_div_cancel_left],
     norm_num, norm_num,
     apply pow_ne_zero, norm_num, norm_num,
-    apply add_nonneg, norm_num, apply sqrt_two_add_series_nonneg, norm_num,
+    apply add_nonneg, norm_num, apply sqrt_two_add_series_zero_nonneg, norm_num,
     apply le_of_lt, apply mul_pos, apply cos_pos_of_neg_pi_div_two_lt_of_lt_pi_div_two,
     { transitivity (0 : ℝ), rw neg_lt_zero, apply pi_div_two_pos,
       apply div_pos pi_pos, apply pow_pos, norm_num },
@@ -119,18 +135,18 @@ lemma sqrt_two_add_series_lt_two : ∀(n : ℕ), sqrt_two_add_series n < 2
   end
 
 lemma sin_square_pi_over_two_pow (n : ℕ) :
-  sin (pi / 2 ^ (n+1)) ^ 2 = 1 - (sqrt_two_add_series n / 2) ^ 2 :=
+  sin (pi / 2 ^ (n+1)) ^ 2 = 1 - (sqrt_two_add_series 0 n / 2) ^ 2 :=
 by rw [sin_square, cos_pi_over_two_pow]
 
 lemma sin_square_pi_over_two_pow_succ (n : ℕ) :
-  sin (pi / 2 ^ (n+2)) ^ 2 = 1 / 2 - sqrt_two_add_series n / 4 :=
+  sin (pi / 2 ^ (n+2)) ^ 2 = 1 / 2 - sqrt_two_add_series 0 n / 4 :=
 begin
   rw [sin_square_pi_over_two_pow, sqrt_two_add_series, div_pow, sqr_sqrt, add_div, ←sub_sub],
-  congr, norm_num, norm_num, apply add_nonneg, norm_num, apply sqrt_two_add_series_nonneg, norm_num
+  congr, norm_num, norm_num, apply add_nonneg, norm_num, apply sqrt_two_add_series_zero_nonneg, norm_num
 end
 
 @[simp] lemma sin_pi_over_two_pow_succ (n : ℕ) :
-  sin (pi / 2 ^ (n+2)) = sqrt (2 - sqrt_two_add_series n) / 2 :=
+  sin (pi / 2 ^ (n+2)) = sqrt (2 - sqrt_two_add_series 0 n) / 2 :=
 begin
   symmetry, rw [div_eq_iff_mul_eq], symmetry,
   rw [sqrt_eq_iff_sqr_eq, mul_pow, sin_square_pi_over_two_pow_succ, sub_mul],
@@ -143,9 +159,6 @@ begin
   apply pow_lt_pow, norm_num, apply nat.succ_pos, norm_num, norm_num
 end
 
-lemma cos_square_pi_div_four : cos (pi / 4) ^ 2 = 1 / 2 :=
-by { have : 2 * (pi / 4) = pi / 2, ring, simp [cos_square, this] }
-
 lemma cos_pi_div_four : cos (pi / 4) = sqrt 2 / 2 :=
 by { transitivity cos (pi / 2 ^ 2), congr, norm_num, simp }
 
@@ -156,8 +169,7 @@ lemma cos_pi_div_eight : cos (pi / 8) = sqrt (2 + sqrt 2) / 2 :=
 by { transitivity cos (pi / 2 ^ 3), congr, norm_num, simp }
 
 lemma sin_pi_div_eight : sin (pi / 8) = sqrt (2 - sqrt 2) / 2 :=
-by { transitivity sin (pi / 2 ^ 3), congr, norm_num,
-  simp only [sin_pi_over_two_pow_succ, sqrt_two_add_series_one],  }
+by { transitivity sin (pi / 2 ^ 3), congr, norm_num, simp }
 
 lemma cos_pi_div_sixteen : cos (pi / 16) = sqrt (2 + sqrt (2 + sqrt 2)) / 2 :=
 by { transitivity cos (pi / 2 ^ 4), congr, norm_num, simp }
@@ -187,7 +199,8 @@ begin
   exact lt_of_le_of_lt (sin_le_one x) h'
 end
 
-/- todo: this is also true for x > 1, but it's nontrivial for x just above 1 -/
+/- note 1: this inequality is not tight, the tighter inequality is sin x > x - x ^ 3 / 6.
+   note 2: this is also true for x > 1, but it's nontrivial for x just above 1. -/
 lemma sin_gt_sub_cube {x : ℝ} (h : 0 < x) (h' : x ≤ 1) : sin x > x - x ^ 3 / 4 :=
 begin
   have hx : abs x = x := abs_of_nonneg (le_of_lt h),
@@ -205,9 +218,9 @@ begin
   norm_num, norm_num, apply pow_pos h
 end
 
-lemma pi_gt_sqrt_two_add_series (n : ℕ) : pi > 2 ^ (n+1) * sqrt (2 - sqrt_two_add_series n) :=
+lemma pi_gt_sqrt_two_add_series (n : ℕ) : pi > 2 ^ (n+1) * sqrt (2 - sqrt_two_add_series 0 n) :=
 begin
-  have : pi > sqrt (2 - sqrt_two_add_series n) / 2 * 2 ^ (n+2),
+  have : pi > sqrt (2 - sqrt_two_add_series 0 n) / 2 * 2 ^ (n+2),
   { apply mul_lt_of_lt_div, apply pow_pos, norm_num,
     rw [←sin_pi_over_two_pow_succ], apply sin_lt, apply div_pos pi_pos, apply pow_pos, norm_num },
   apply lt_of_le_of_lt (le_of_eq _) this,
@@ -215,9 +228,9 @@ begin
 end
 
 lemma pi_lt_sqrt_two_add_series (n : ℕ) :
-  pi < 2 ^ (n+1) * sqrt (2 - sqrt_two_add_series n) + 1 / 4 ^ n :=
+  pi < 2 ^ (n+1) * sqrt (2 - sqrt_two_add_series 0 n) + 1 / 4 ^ n :=
 begin
-  have : pi < (sqrt (2 - sqrt_two_add_series n) / 2 + 1 / (2 ^ n) ^ 3 / 4) * 2 ^ (n+2),
+  have : pi < (sqrt (2 - sqrt_two_add_series 0 n) / 2 + 1 / (2 ^ n) ^ 3 / 4) * 2 ^ (n+2),
   { apply lt_mul_of_div_lt, apply pow_pos, norm_num,
     rw [←sin_pi_over_two_pow_succ],
     refine lt_of_lt_of_le (lt_add_of_sub_right_lt (sin_gt_sub_cube _ _)) _,
@@ -303,7 +316,7 @@ end real
 -- | 1     := 0
 -- | (n+2) := sqrt(1/2 + sqrt_two_add_series (n+1) / 2)
 
--- lemma sqrt_two_add_series_nonneg : ∀{n : ℕ} (h : n > 0), sqrt_two_add_series n ≥ 0
+-- lemma sqrt_two_add_series_zero_nonneg : ∀{n : ℕ} (h : n > 0), sqrt_two_add_series n ≥ 0
 -- | 1     h := le_refl 0
 -- | (n+2) h := sqrt_nonneg _
 
@@ -316,7 +329,7 @@ end real
 --     rw [sqrt_two_add_series, sqrt_eq_iff_sqr_eq, cos_square, ←mul_div_assoc,
 --       nat.add_succ, pow_succ, mul_div_mul_left, cos_pi_over_two_pow],
 --     apply pow_ne_zero, norm_num, norm_num,
---     apply add_nonneg, norm_num, apply div_nonneg, apply sqrt_two_add_series_nonneg,
+--     apply add_nonneg, norm_num, apply div_nonneg, apply sqrt_two_add_series_zero_nonneg,
 --     apply nat.succ_pos, norm_num,
 --     apply le_of_lt, apply cos_pos_of_neg_pi_div_two_lt_of_lt_pi_div_two,
 --     { transitivity (0 : ℝ), rw neg_lt_zero, apply pi_div_two_pos,
@@ -325,3 +338,12 @@ end real
 --     refine lt_of_le_of_lt (le_of_eq (pow_one _).symm) _,
 --     apply pow_lt_pow, norm_num, apply nat.succ_lt_succ, apply nat.succ_pos, norm_num
 --   end
+
+-- lemma half_sqrt_half : sqrt (1 / 2) / 2 = sqrt (1 / 8) :=
+-- begin
+--   have h1 : 2 * sqrt 2 ≠ 0, norm_num,
+--   have h2 : sqrt 8 ≠ 0, norm_num,
+--   have h3 : sqrt 4 = 2, rw [sqrt_eq_iff_sqr_eq]; norm_num,
+--   simp [div_eq_mul_inv, (mul_inv' _ _).symm, division_ring.inv_inj, h1, h2],
+--   transitivity sqrt 4 * sqrt 2, rw [h3], rw [←sqrt_mul]; norm_num
+-- end
