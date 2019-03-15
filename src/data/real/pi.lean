@@ -303,8 +303,8 @@ begin
   rw [sqrt_le_left, sub_le], swap, norm_num,
   refine le_trans _ (sqrt_two_add_series_step_down (41/29) (by norm_num)),
   refine le_trans _ (sqrt_two_add_series_step_down (194/105) (by norm_num)),
-  refine le_trans _ (sqrt_two_add_series_step_down (13513/6889) (by norm_num)),
-  refine le_trans _ (sqrt_two_add_series_step_down (2271/1141) (by norm_num)),
+  refine le_trans _ (sqrt_two_add_series_step_down (3211/1637) (by norm_num)),
+  refine le_trans _ (sqrt_two_add_series_step_down (412/207) (by norm_num)),
   norm_num
 end
 
